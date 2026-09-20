@@ -87,7 +87,7 @@ test("Notes opens at its newest item and Transcript keeps its position", () => {
   );
 });
 
-test("the transcript view restores without resuming automatic scrolling", () => {
+test("the transcript follows by default and only restores an explicitly paused view", () => {
   assert.match(
     source,
     /void saveCurrentTranscriptViewState\(\);\s+window\.close\(\);/,
@@ -98,11 +98,11 @@ test("the transcript view restores without resuming automatic scrolling", () => 
   );
   assert.match(
     source,
-    /function restorePendingTranscriptViewState\(videoId\)[\s\S]*autoScrollEnabled = false;[\s\S]*contentArea\.scrollTop = state\.scrollTop;/,
+    /function restorePendingTranscriptViewState\(videoId\)[\s\S]*if \(autoScrollEnabled\)[\s\S]*playbackTrackingTick\(true\)[\s\S]*contentArea\.scrollTop = state\.scrollTop;/,
   );
   assert.match(
     source,
-    /willRestoreReadingPosition[\s\S]*autoScrollEnabled = !willRestoreReadingPosition/,
+    /autoScrollEnabled \? "none" : "block"/,
   );
   assert.match(
     source,

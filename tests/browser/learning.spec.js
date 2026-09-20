@@ -370,3 +370,61 @@ test("follow playback refreshes stale highlight and scrolls only the caption are
   );
   await expect(page.locator("#followPlaybackBtn")).not.toBeVisible();
 });
+
+test("video seeks stay in sync; only manual caption scrolling pauses follow", async ({
+  page,
+}) => {
+  await setup(page);
+  await page.evaluate(() => {
+    currentTranscript = Array.from({ length: 30 }, (_, i) => ({
+      start: i * 10,
+      duration: 10,
+      text: `Sentence ${i}. ` + "Readable subtitle context. ".repeat(6),
+    }));
+    renderTranscriptModeRows(
+      currentTranscript.map((entry, i) => ({ ...entry, id: String(i) })),
+      "bilingual",
+    );
+    window.__time = 120;
+  });
+  await expect(page.locator(".active-playback")).toHaveAttribute(
+    "data-seconds",
+    "120",
+  );
+  await expect(page.locator("#followPlaybackBtn")).not.toBeVisible();
+  // Browser-generated scroll events must not be mistaken for manual input.
+  await page
+    .locator("#contentArea")
+    .evaluate((el) => el.dispatchEvent(new Event("scroll")));
+  await page.evaluate(() => (window.__time = 200));
+  await expect(page.locator(".active-playback")).toHaveAttribute(
+    "data-seconds",
+    "200",
+  );
+  await expect(page.locator("#followPlaybackBtn")).not.toBeVisible();
+  await page.locator("#contentArea").hover();
+  await page.mouse.wheel(0, -240);
+  await expect(page.locator("#followPlaybackBtn")).toBeVisible();
+  const readingPosition = await page
+    .locator("#contentArea")
+    .evaluate((el) => el.scrollTop);
+  await page.evaluate(() => (window.__time = 250));
+  await expect(page.locator(".active-playback")).toHaveAttribute(
+    "data-seconds",
+    "250",
+  );
+  expect(
+    await page.locator("#contentArea").evaluate((el) => el.scrollTop),
+  ).toBeCloseTo(readingPosition, 0);
+  await page.getByRole("button", { name: "笔记", exact: true }).click();
+  await page.getByRole("button", { name: "字幕", exact: true }).click();
+  await expect(page.locator("#followPlaybackBtn")).toBeVisible();
+  await page.locator("#followPlaybackBtn").click();
+  await expect(page.locator("#followPlaybackBtn")).not.toBeVisible();
+  await page.evaluate(() => (window.__time = 40));
+  await expect(page.locator(".active-playback")).toHaveAttribute(
+    "data-seconds",
+    "40",
+  );
+  await expect(page.locator("#followPlaybackBtn")).not.toBeVisible();
+});

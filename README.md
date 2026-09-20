@@ -49,7 +49,7 @@ npm run package
 npm run test:browser
 ```
 
-The first browser test run needs `npx playwright install chromium`. The ZIP is written to `dist/caption-harbor-v2.0.5.zip` from a strict public-file allowlist. Tests cover subtitle parsing, transcription jobs, local collection, provider errors, request boundaries and browser interactions using controlled fixtures. Automated fixtures do not establish successful authentication or paid-provider operation on your account. Real Eudic, Supadata and DeepSeek calls require keys entered in Settings and a manual acceptance pass.
+The first browser test run needs `npx playwright install chromium`. The ZIP is written to `dist/caption-harbor-v2.0.6.zip` from a strict public-file allowlist. Tests cover subtitle parsing, transcription jobs, local collection, provider errors, request boundaries and browser interactions using controlled fixtures. Automated fixtures do not establish successful authentication or paid-provider operation on your account. Real Eudic, Supadata and DeepSeek calls require keys entered in Settings and a manual acceptance pass.
 
 See [中文说明](README.zh-CN.md), [privacy](PRIVACY.md), [security](SECURITY.md), and [MIT license](LICENSE).
 
@@ -72,3 +72,6 @@ Roboto Slab 与 Lexend 已内置，无需安装系统字体或连接字体服务
 
 
 The sidebar uses timestamps above each caption, a compact playback toolbar, and a subtitle-file menu for import/copy/export. Appearance controls are only in Settings. Follow playback fetches the current time from the bound video tab, reconnects a missing player script when possible, and scrolls only the caption container.
+
+
+Playback follows by default, including video timeline seeks and automatic layout scrolling. Only wheel/touch scrolling, scroll-navigation keys, or scrollbar dragging inside captions pauses following. A manual pause survives panel-tab switches until Follow playback is clicked; a fresh panel or new video defaults to following.

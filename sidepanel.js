@@ -441,7 +441,7 @@ function setupEventListeners() {
       try {
         const moved = await playbackTrackingTick(true);
         button.style.display = moved ? "none" : "block";
-        if (!moved) autoScrollEnabled = false;
+
       } finally { button.disabled = false; }
     });
 
@@ -572,6 +572,7 @@ async function startDigest(videoId, videoUrl) {
 
   // Every video change invalidates observer work and in-flight translations.
   if (videoChanged) {
+    autoScrollEnabled = true;
     translationGeneration += 1;
     if (transcriptScrollObserver) transcriptScrollObserver.disconnect();
     transcriptScrollObserver = null;
@@ -1227,10 +1228,6 @@ function revealCurrentTranscriptSearchMatch({ scroll = true } = {}) {
   mark.closest(".transcript-entry")?.classList.add("search-current");
 
   if (!scroll) return;
-  if (autoScrollInterval) {
-    autoScrollEnabled = false;
-    document.getElementById("followPlaybackBtn").style.display = "block";
-  }
   mark.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
@@ -2260,11 +2257,8 @@ function startPlaybackTracking() {
   // Don't restart if already tracking (preserves user's auto-scroll state)
   if (autoScrollInterval) return;
 
-  const willRestoreReadingPosition =
-    pendingTranscriptViewState?.videoId === currentVideoId;
-  autoScrollEnabled = !willRestoreReadingPosition;
   document.getElementById("followPlaybackBtn").style.display =
-    willRestoreReadingPosition ? "block" : "none";
+    autoScrollEnabled ? "none" : "block";
 
   // Poll video time every 500ms
   autoScrollInterval = setInterval(() => playbackTrackingTick(), 500);
@@ -2273,6 +2267,10 @@ function startPlaybackTracking() {
   const contentArea = document.getElementById("contentArea");
   contentArea.removeEventListener("scroll", onContentAreaScroll);
   contentArea.addEventListener("scroll", onContentAreaScroll);
+  contentArea.addEventListener("wheel", onTranscriptScrollGesture, {passive:true});
+  contentArea.addEventListener("touchmove", onTranscriptScrollGesture, {passive:true});
+  contentArea.addEventListener("keydown", onTranscriptScrollGesture);
+  contentArea.addEventListener("pointerdown", onTranscriptScrollGesture);
 }
 
 /**
@@ -2284,7 +2282,7 @@ function stopPlaybackTracking() {
     clearInterval(autoScrollInterval);
     autoScrollInterval = null;
   }
-  autoScrollEnabled = true; // Reset for next time
+  // Preserve an explicit manual pause while switching panel tabs.
   lastAutoScrollTime = 0;
   document.getElementById("followPlaybackBtn").style.display = "none";
 
@@ -2388,17 +2386,24 @@ function highlightActiveEntry(currentSeconds) {
  * can read at their own pace without being yanked back.
  */
 function onContentAreaScroll() {
+  // Programmatic scrolls, video seeking and layout changes are NOT user intent.
   scheduleTranscriptViewStateSave();
+}
 
-  // Ignore scroll events within 1 second of a programmatic scroll
-  // (smooth scroll animations can last longer than a simple boolean flag)
-  if (Date.now() - lastAutoScrollTime < 1000) return;
-
-  // User scrolled manually — disable auto-scroll and show the button
-  if (autoScrollEnabled && autoScrollInterval) {
-    autoScrollEnabled = false;
-    document.getElementById("followPlaybackBtn").style.display = "block";
+function onTranscriptScrollGesture(event) {
+  if (!autoScrollEnabled || !autoScrollInterval || !transcriptTabIsActive()) return;
+  if (event.target.closest?.("input,textarea,select,button,summary,[contenteditable='true']")) return;
+  if (event.type === "keydown") {
+    if (event.altKey || event.ctrlKey || event.metaKey || !["ArrowUp","ArrowDown","PageUp","PageDown","Home","End"," "].includes(event.key)) return;
   }
+  if (event.type === "pointerdown") {
+    const area = document.getElementById("contentArea");
+    const bounds = area.getBoundingClientRect();
+    // Only the scrollbar gutter; selecting caption text must not pause following.
+    if (event.target !== area || event.clientX < bounds.right - 12) return;
+  }
+  autoScrollEnabled = false;
+  document.getElementById("followPlaybackBtn").style.display = "block";
 }
 
 /**
@@ -2510,8 +2515,8 @@ function captureCurrentTranscriptScrollTop() {
 }
 
 /**
- * Restores the saved position after the transcript becomes visible. Follow
- * Playback stays paused, so the next timer tick cannot move the panel again.
+ * A fresh panel follows playback by default. Restore a reading position only
+ * when this panel was explicitly paused by a manual caption scroll.
  */
 function restorePendingTranscriptViewState(videoId) {
   const state = pendingTranscriptViewState;
@@ -2528,9 +2533,13 @@ function restorePendingTranscriptViewState(videoId) {
       return;
     }
 
+    if (autoScrollEnabled) {
+      contentArea.classList.remove("restoring-transcript-view");
+      void playbackTrackingTick(true);
+      return;
+    }
     isRestoringTranscriptView = true;
     lastAutoScrollTime = Date.now();
-    autoScrollEnabled = false;
     contentArea.scrollTop = state.scrollTop;
     lastTranscriptScrollTop = state.scrollTop;
     document.getElementById("followPlaybackBtn").style.display = "block";
