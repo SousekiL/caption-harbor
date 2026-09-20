@@ -15,7 +15,7 @@ Read YouTube captions, understand unfamiliar ideas, and keep the words you want 
 
 This project is installed locally from GitHub, not through the Chrome Web Store. It has no developer-hosted server, bundled API credits or automatic extension updates. Cloud providers charge separately. The current release is a beta.
 
-![Caption Harbor reader with example captions](docs/images/reader-en.png)
+![Caption Harbor running beside a YouTube video, with transcript selection and learning actions](docs/images/feature-overview.png)
 
 ## What comes from YouTube Digest, and what changed?
 

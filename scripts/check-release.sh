@@ -27,6 +27,7 @@ fail() {
 public_allowlist=(
   "docs/images/reader.png"
   "docs/images/reader-en.png"
+  "docs/images/feature-overview.png"
   "icons/icon.svg"
   "ui-language.js"
   "browser-captions.js"

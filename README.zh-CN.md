@@ -15,7 +15,7 @@
 
 插件目前通过 GitHub 本地安装，未上架 Chrome 应用商店，不附赠 API 额度，也没有开发者托管服务器。云端服务独立计费，扩展不会自动更新。当前发布为测试版。
 
-![Caption Harbor 阅读界面，使用示例字幕展示](docs/images/reader.png)
+![Caption Harbor 在 YouTube 视频旁展示字幕、划词和学习操作](docs/images/feature-overview.png)
 
 ## 哪些来自原版，哪些是本版本的改进？
 
