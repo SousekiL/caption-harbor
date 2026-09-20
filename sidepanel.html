@@ -3,12 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>YouTube Digest</title>
+    <title>Caption Harbor</title>
     <link rel="stylesheet" href="sidepanel.css" />
+    <link rel="stylesheet" href="lens.css" />
   </head>
   <body>
     <!-- HEADER -->
-    <!-- Note: the panel's own "YouTube Digest" title is shown by Chrome's side-panel
+    <!-- Note: the panel's own "Caption Harbor" title is shown by Chrome's side-panel
          title bar, so we don't repeat a logo here. -->
     <div class="header">
       <div class="header-top">
@@ -22,8 +23,8 @@
             class="settings-btn"
             id="settingsBtn"
             type="button"
-            title="Open YouTube Digest settings"
-            aria-label="Open YouTube Digest settings"
+            title="Open Caption Harbor settings"
+            aria-label="Open Caption Harbor settings"
           >
             Settings
           </button>
@@ -63,9 +64,9 @@
 
       <!-- Tab navigation -->
       <div class="tabs" id="tabsNav" style="display: none">
-        <button class="tab active" data-tab="transcript">Transcript</button>
-        <button class="tab" data-tab="overview">Overview</button>
-        <button class="tab" data-tab="notes">Notes</button>
+        <button class="tab active" data-tab="transcript">字幕</button>
+        <button class="tab" data-tab="overview">概览</button>
+        <button class="tab" data-tab="notes">笔记</button>
       </div>
     </div>
 
@@ -263,6 +264,9 @@
     </button>
 
     <script src="settings.js"></script>
+    <script src="lens-core.js"></script>
+    <script src="lens-transcript.js"></script>
     <script src="sidepanel.js"></script>
+    <script src="lens-panel.js"></script>
   </body>
 </html>

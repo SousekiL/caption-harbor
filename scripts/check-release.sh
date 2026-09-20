@@ -25,6 +25,12 @@ fail() {
 # Optional entries are included only when present; manifest references are
 # validated separately, so a referenced-but-missing file still fails.
 public_allowlist=(
+  "lens-core.js"
+  "lens-transcript.js"
+  "lens-background.js"
+  "lens-panel.js"
+  "lens-options.js"
+  "lens.css"
   "manifest.json"
   "background.js"
   "settings.js"
@@ -227,7 +233,7 @@ for file in "${javascript_files[@]}"; do
 done
 
 if compgen -G "tests/*.test.js" >/dev/null; then
-  node --test tests/*.test.js
+  node --test tests/*.test.js >&2
 fi
 
 if ((${#javascript_files[@]} > 0)); then

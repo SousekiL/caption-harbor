@@ -1,0 +1,182 @@
+/* Caption Harbor: paper, deep teal, generous reading space. */
+:root {
+  --accent: #246b69;
+  --accent-hover: #17504f;
+  --accent-dim: rgba(36, 107, 105, 0.1);
+  --bg: #f6f5f0;
+  --text: #243432;
+}
+.lens-brand {
+  padding: 10px 18px 6px;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 1.1px;
+  color: var(--accent);
+}
+.lens-tools,
+.lens-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.lens-tools {
+  padding: 6px 16px;
+}
+.lens-tools button,
+.lens-panel button,
+.lens-dialog button,
+.lens-settings button {
+  font: inherit;
+  font-size: 12px;
+  padding: 7px 10px;
+  border: 1px solid #c7d6d0;
+  border-radius: 8px;
+  background: #fff;
+  color: #245654;
+  cursor: pointer;
+  white-space: normal;
+}
+.lens-tools button:hover,
+.lens-panel button:hover,
+.lens-dialog button:hover {
+  background: #e5efeb;
+}
+.lens-status {
+  padding: 0 18px;
+  font-size: 12px;
+  color: #245654;
+  min-height: 0;
+}
+.lens-status:empty {
+  display: none;
+}
+.lens-panel h2 {
+  font-size: 20px;
+  margin: 8px 0 14px;
+}
+.lens-panel input,
+.lens-panel textarea,
+.lens-dialog input,
+.lens-settings input:not([type="checkbox"]),
+.lens-settings select {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #c7d6d0;
+  border-radius: 8px;
+  margin: 7px 0 12px;
+  font: inherit;
+  background: white;
+  color: #243432;
+}
+.lens-panel textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+.lens-card {
+  padding: 16px;
+  margin-top: 14px;
+  background: #fff;
+  border: 1px solid #e1e7e1;
+  border-radius: 12px;
+  overflow-wrap: anywhere;
+}
+.lens-card h3 {
+  font-size: 16px;
+  margin: 0 0 8px;
+}
+.lens-card button {
+  margin: 4px 4px 0 0;
+}
+.lens-card blockquote {
+  border-left: 2px solid #9ab5ac;
+  margin: 10px 0;
+  padding-left: 10px;
+  color: #5d6b66;
+}
+.lens-pre {
+  white-space: pre-wrap;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+.lens-muted {
+  font-size: 12px;
+  color: #5d6b66;
+}
+.lens-dialog {
+  padding: 20px;
+  max-height: 85vh;
+  overflow: auto;
+}
+.lens-dialog > button:first-child {
+  float: right;
+}
+.lens-dialog h2 {
+  clear: both;
+  padding-top: 12px;
+}
+.lens-settings {
+  max-width: 720px;
+  margin: 24px auto;
+  padding: 24px;
+  background: #f5f7f3;
+  border: 1px solid #c7d6d0;
+  border-radius: 16px;
+}
+.lens-settings label {
+  display: block;
+  margin-top: 14px;
+}
+.lens-settings p {
+  font-size: 13px;
+  line-height: 1.6;
+}
+.tabs {
+  overflow-x: auto;
+}
+.tab {
+  min-width: 54px;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+.explain-tooltip {
+  max-width: calc(100vw - 20px);
+  flex-wrap: wrap;
+}
+.explain-tooltip .lens-word-btn,
+.explain-tooltip .lens-concept-btn,
+.explain-tooltip .lens-collect-btn {
+  padding: 8px;
+  border: 0;
+  border-radius: 6px;
+  background: #246b69;
+  color: #fff;
+  cursor: pointer;
+}
+::highlight(harbor-vocabulary) {
+  background: #dcebc9;
+  color: #243432;
+  text-decoration: underline;
+}
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+summary:focus-visible {
+  outline: 2px solid #246b69;
+  outline-offset: 3px;
+}
+button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+.tabs .tab {
+  flex: 1 0 auto;
+  min-width: 42px;
+  white-space: nowrap;
+}
+.explain-tooltip .explain-btn,
+.explain-tooltip .selection-note-btn {
+  flex: 1 1 auto;
+  padding: 8px;
+}

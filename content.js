@@ -90,7 +90,7 @@ function tryInjectNoteButton() {
 
     if (attempts >= maxAttempts) {
       debugLog(
-        "[YouTube Digest Content] Player container not found after retries, giving up",
+        "[Caption Harbor Content] Player container not found after retries, giving up",
       );
       if (ytdNoteButtonRetryTimer) {
         clearInterval(ytdNoteButtonRetryTimer);
@@ -122,12 +122,26 @@ if (document.readyState === "loading") {
  * When they send key moments, we highlight them on the progress bar.
  */
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  debugLog("[YouTube Digest Content] Received message:", message.action, message);
+  debugLog("[Caption Harbor Content] Received message:", message.action, message);
 
+  if (message.action === "lensPlayer") {
+    const video = document.querySelector("video.html5-main-video");
+    const videoId = new URL(location.href).searchParams.get("v");
+    if (!video || videoId !== message.videoId) { sendResponse({success:false,error:"视频已切换"}); return false; }
+    if (message.command === "toggle") { if (video.paused) video.play().catch(()=>{}); else video.pause(); }
+    else if (message.command === "previous") { harborLoop = null; video.currentTime = Math.max(0, Number(message.start) || 0); video.play().catch(()=>{}); }
+    else if (message.command === "loop") {
+      if (harborLoop) harborLoop = null;
+      else if (Number.isFinite(message.start) && Number.isFinite(message.end) && message.end > message.start) {
+        harborLoop = {start:message.start,end:message.end,videoId}; video.currentTime=message.start; video.play().catch(()=>{});
+      } else { sendResponse({success:false,error:"请先加载字幕"}); return false; }
+    }
+    sendResponse({success:true,loop:!!harborLoop}); return false;
+  }
   if (message.action === "getVideoInfo") {
     // Read video title and channel name from the page
     const info = extractVideoInfo();
-    debugLog("[YouTube Digest Content] Returning video info:", info);
+    debugLog("[Caption Harbor Content] Returning video info:", info);
     sendResponse(info);
     return false; // Synchronous response
   }
@@ -150,7 +164,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.action === "seekTo") {
     // Jump the video to a specific timestamp
-    debugLog("[YouTube Digest Content] Seeking to:", message.seconds);
+    debugLog("[Caption Harbor Content] Seeking to:", message.seconds);
     seekToTimestamp(message.seconds);
     sendResponse({ success: true });
     return false;
@@ -164,7 +178,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   // Unknown action - still send a response to prevent hanging
-  debugLog("[YouTube Digest Content] Unknown action:", message.action);
+  debugLog("[Caption Harbor Content] Unknown action:", message.action);
   sendResponse({ success: false, error: "Unknown action" });
   return false;
 });
@@ -177,7 +191,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
  * Injects a "Digest" button into YouTube's action bar.
  * The button appears next to Share, Save, etc. below the video.
  *
- * When clicked, it opens the YouTube Digest side panel.
+ * When clicked, it opens the Caption Harbor side panel.
  */
 function isVisibleDigestHost(element) {
   if (!element || !element.isConnected) return false;
@@ -231,7 +245,7 @@ function createDigestButton() {
   const digestButton = document.createElement("button");
   digestButton.id = "ytd-digest-button";
   digestButton.type = "button";
-  digestButton.setAttribute("aria-label", "Open YouTube Digest");
+  digestButton.setAttribute("aria-label", "Open Caption Harbor");
   digestButton.innerHTML = `<span class="ytd-digest-label">Digest</span>`;
 
   // Style the button — rounded pill in our terracotta accent, sized to sit
@@ -276,16 +290,16 @@ function createDigestButton() {
     e.preventDefault();
     e.stopPropagation();
 
-    debugLog("[YouTube Digest] Digest button clicked");
+    debugLog("[Caption Harbor] Digest button clicked");
 
     // Send message to background script to open side panel
     try {
       const result = await chrome.runtime.sendMessage({
         action: "openSidePanel",
       });
-      debugLog("[YouTube Digest] openSidePanel response:", result);
+      debugLog("[Caption Harbor] openSidePanel response:", result);
     } catch (err) {
-      console.error("[YouTube Digest] Failed to open side panel:", err);
+      console.error("[Caption Harbor] Failed to open side panel:", err);
     }
   });
 
@@ -311,7 +325,7 @@ function injectDigestButton() {
 
   const actionsContainer = findDigestButtonHost();
   if (!actionsContainer) {
-    debugLog("[YouTube Digest Content] Visible actions container not found yet");
+    debugLog("[Caption Harbor Content] Visible actions container not found yet");
     return false;
   }
 
@@ -337,7 +351,7 @@ function injectDigestButton() {
     actionsContainer.insertBefore(digestButton, actionsContainer.firstChild);
   }
 
-  debugLog("[YouTube Digest Content] Digest button reconciled");
+  debugLog("[Caption Harbor Content] Digest button reconciled");
   return true;
 }
 
@@ -419,7 +433,7 @@ function injectNoteButton() {
 
   if (!playerContainer) {
     debugLog(
-      "[YouTube Digest Content] Player container not found yet, will retry",
+      "[Caption Harbor Content] Player container not found yet, will retry",
     );
     return;
   }
@@ -432,7 +446,7 @@ function injectNoteButton() {
     playerContainer.style.position = "relative";
   }
 
-  debugLog("[YouTube Digest Content] Injecting note button");
+  debugLog("[Caption Harbor Content] Injecting note button");
 
   // Create the note button — a soft rounded pill that floats over the player
   const noteButton = document.createElement("button");
@@ -512,7 +526,7 @@ function injectNoteButton() {
 
   playerContainer.appendChild(noteButton);
 
-  debugLog("[YouTube Digest Content] Note button injected");
+  debugLog("[Caption Harbor Content] Note button injected");
 }
 
 function showNoteButton() {
@@ -568,11 +582,11 @@ function handleNoteKeyboardShortcut(e) {
  * Captures the current timestamp and saves it as a note.
  */
 async function saveCurrentNote() {
-  debugLog("[YouTube Digest] Saving note");
+  debugLog("[Caption Harbor] Saving note");
 
   const video = document.querySelector("video.html5-main-video");
   if (!video) {
-    console.error("[YouTube Digest] No video element found");
+    console.error("[Caption Harbor] No video element found");
     return;
   }
 
@@ -611,14 +625,14 @@ async function saveCurrentNote() {
         noteButton.innerHTML =
           '<span style="letter-spacing: 0.2px;">ERROR</span>';
       }
-      console.error("[YouTube Digest] Save note error:", result.error);
+      console.error("[Caption Harbor] Save note error:", result.error);
     }
   } catch (err) {
     if (noteButton) {
       noteButton.innerHTML =
         '<span style="letter-spacing: 0.2px;">ERROR</span>';
     }
-    console.error("[YouTube Digest] Save note exception:", err);
+    console.error("[Caption Harbor] Save note exception:", err);
   }
 
   setTimeout(() => {
@@ -768,11 +782,11 @@ function highlightKeyMoments(moments, videoDuration) {
 function seekToTimestamp(seconds) {
   const video = document.querySelector("video.html5-main-video");
   if (!video) {
-    console.error("[YouTube Digest Content] No video element found for seek");
+    console.error("[Caption Harbor Content] No video element found for seek");
     return;
   }
 
-  debugLog("[YouTube Digest Content] Seeking to:", seconds);
+  debugLog("[Caption Harbor Content] Seeking to:", seconds);
   video.currentTime = seconds;
   // Also play the video if it's paused
   if (video.paused) {
@@ -837,3 +851,13 @@ document.addEventListener("yt-navigate-finish", () => {
     tryInjectNoteButton();
   }, 500);
 });
+
+// Loop against media time, with automatic reset on YouTube SPA navigation.
+let harborLoop = null;
+document.addEventListener("yt-navigate-start", () => { harborLoop = null; });
+setInterval(() => {
+  if (!harborLoop) return;
+  if (new URL(location.href).searchParams.get("v") !== harborLoop.videoId) { harborLoop=null; return; }
+  const video=document.querySelector("video.html5-main-video");
+  if (video && !video.paused && (video.currentTime >= harborLoop.end || video.currentTime < harborLoop.start - .5)) video.currentTime=harborLoop.start;
+}, 100);

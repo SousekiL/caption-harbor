@@ -1,0 +1,99 @@
+/* Caption Harbor personal settings stay in trusted local extension storage. */
+(async () => {
+  const root = document.createElement("section");
+  root.className = "lens-settings";
+  root.innerHTML = `<h2>Caption Harbor · 学习设置</h2>
+  <label><input id="harbor-auto" type="checkbox"> 没有字幕时自动转录音频</label>
+  <p>优先读取已有字幕；否则由 Supadata 转录公开视频音频。转录按视频分钟消耗额外额度（目前每分钟 2 credits），长视频可能等待数分钟。</p>
+  <label>欧路授权 Token <input id="harbor-token" type="password" autocomplete="off" placeholder="填写你的欧路授权信息"></label>
+  <p><a href="https://my.eudic.net/OpenAPI/Authorization" target="_blank" rel="noreferrer">获取欧路授权</a> · Token 仅保存在本机，不发送给 AI。</p>
+  <button id="harbor-connect" type="button">保存并读取生词本</button>
+  <label>默认生词本 <select id="harbor-category"><option value="0">默认生词本</option></select></label>
+  <label>新生词本名称 <input id="harbor-new" placeholder="YouTube"></label><button id="harbor-create" type="button">新建生词本</button>
+  <button id="harbor-save" type="button">保存学习设置</button>
+  <h3>转录任务</h3><p>超时不代表服务端取消。请先核对 Supadata 的任务和额度；重置后再次请求可能产生额外费用。</p>
+  <label>需要重置的视频 ID <input id="harbor-video-id" placeholder="YouTube 链接 v= 后面的 ID"></label>
+  <button id="harbor-reset" type="button">重置该视频转录任务</button><p id="harbor-status" role="status"></p>`;
+  (document.querySelector("main") || document.body).append(root);
+  const $ = (id) => document.getElementById(`harbor-${id}`);
+  const config = {
+    autoTranscribe: true,
+    categoryId: "0",
+    ...(await chrome.storage.local.get("lens_settings")).lens_settings,
+  };
+  $("auto").checked = config.autoTranscribe;
+  $("token").value = config.eudicToken || "";
+  if (config.categoryId && config.categoryId !== "0")
+    $("category").add(
+      new Option(config.categoryName || config.categoryId, config.categoryId),
+    );
+  $("category").value = config.categoryId || "0";
+  async function save() {
+    await chrome.storage.local.set({
+      lens_settings: {
+        autoTranscribe: $("auto").checked,
+        eudicToken: $("token").value.trim(),
+        categoryId: $("category").value,
+        categoryName: $("category").selectedOptions[0]?.textContent || "",
+      },
+    });
+  }
+  const run = (id, fn) =>
+    $(id).addEventListener("click", async () => {
+      $(id).disabled = true;
+      try {
+        await fn();
+      } catch (e) {
+        $("status").textContent = e.message;
+      } finally {
+        $(id).disabled = false;
+      }
+    });
+  async function categories() {
+    const res = await chrome.runtime.sendMessage({ action: "lensCategories" });
+    if (!res.success) throw new Error(res.error);
+    const previous = $("category").value;
+    $("category").replaceChildren(new Option("默认生词本", "0"));
+    for (const c of res.data)
+      if (String(c.id) !== "0")
+        $("category").add(new Option(c.name, String(c.id)));
+    $("category").value = [...$("category").options].some(
+      (o) => o.value === previous,
+    )
+      ? previous
+      : "0";
+    $("status").textContent = "已连接欧路，请选择目标生词本并保存。";
+  }
+  run("connect", async () => {
+    await save();
+    await categories();
+  });
+  run("save", async () => {
+    await save();
+    $("status").textContent = "学习设置已保存";
+  });
+  run("create", async () => {
+    const name = $("new").value.trim();
+    if (!name) throw new Error("请输入名称");
+    await save();
+    const res = await chrome.runtime.sendMessage({
+      action: "lensCreateCategory",
+      name,
+    });
+    if (!res.success) throw new Error(res.error);
+    await categories();
+    const option = [...$("category").options].find(
+      (o) => o.textContent === name,
+    );
+    if (option) $("category").value = option.value;
+    await save();
+    $("status").textContent = "已创建并选中新生词本";
+  });
+  run("reset", async () => {
+    const id = $("video-id").value.trim();
+    YTD_SETTINGS.canonicalYouTubeUrl(id);
+    if (!confirm("确认已核对服务端任务？重置后重新请求可能再次收费。")) return;
+    await chrome.storage.local.remove(`lens_job_${id}`);
+    $("status").textContent = "任务已重置，重新打开视频即可重试";
+  });
+})().catch(() => {});

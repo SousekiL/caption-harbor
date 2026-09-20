@@ -1,7 +1,7 @@
 /**
  * SIDE PANEL LOGIC
  *
- * Handles the UI for YouTube Digest: video detection, transcript analysis,
+ * Handles the UI for Caption Harbor: video detection, transcript analysis,
  * rendering results, and export features.
  */
 
@@ -261,10 +261,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     action: "checkConfig",
   });
 
-  if (!configStatus.hasSupadataKey || !configStatus.hasAiKey) {
-    showConfigError(configStatus);
-    return;
-  }
+  // Reading imported/cached captions does not require API credentials.
+  // Individual online features explain which key is missing when requested.
 
   await checkCurrentTab();
 });
@@ -483,7 +481,7 @@ async function checkCurrentTab() {
     });
     const tab = tabs[0] || null;
 
-    debugLog("[YouTube Digest Panel] Found tab:", tab?.id, tab?.url);
+    debugLog("[Caption Harbor Panel] Found tab:", tab?.id, tab?.url);
 
     if (!tab?.url) {
       showState("welcome");
@@ -509,7 +507,7 @@ async function checkCurrentTab() {
           action: "relayToContent",
           payload: { action: "getVideoInfo" },
         });
-        debugLog("[YouTube Digest Panel] getVideoInfo result:", result);
+        debugLog("[Caption Harbor Panel] getVideoInfo result:", result);
         if (result.success && result.response) {
           currentVideoTitle = result.response.title || "";
           currentChannelName = result.response.channelName || "";
@@ -517,7 +515,7 @@ async function checkCurrentTab() {
           currentVideoDuration = result.response.duration || 0;
         }
       } catch (e) {
-        console.error("[YouTube Digest Panel] getVideoInfo error:", e);
+        console.error("[Caption Harbor Panel] getVideoInfo error:", e);
         currentVideoTitle = "";
         currentChannelName = "";
         currentVideoDescription = "";
@@ -564,6 +562,7 @@ function extractVideoId(url) {
 // ============================================================
 
 async function startDigest(videoId, videoUrl) {
+  if (typeof lensOnVideoChange === "function") lensOnVideoChange(videoId);
   // Check if we already have this video loaded in memory
   if (videoId === currentVideoId && currentAnalysis) {
     showState("results");
@@ -592,7 +591,9 @@ async function startDigest(videoId, videoUrl) {
   }
 
   // Check cache for this video
+  currentVideoId = videoId;
   const cached = await loadFromCache(videoId);
+  if (currentVideoId !== videoId) return;
   if (cached) {
     debugLog("Loading from cache:", videoId);
     currentVideoId = videoId;
@@ -664,16 +665,27 @@ async function startDigest(videoId, videoUrl) {
   showState("loading");
   updateLoading("Fetching transcript", "");
 
-  const transcriptResult = await chrome.runtime.sendMessage({
-    action: "fetchTranscript",
-    videoId: videoId,
-  });
+  let transcriptResult;
+  try {
+    do {
+      transcriptResult = await lensFetchTranscript(videoId);
+      if (currentVideoId !== videoId) return;
+      // An imported transcript takes precedence over a result arriving later.
+      if (currentTranscript?.length) return;
+      if (transcriptResult.pending) {
+        updateLoading("音频转录中", transcriptResult.message);
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        if (currentVideoId !== videoId || currentTranscript?.length) return;
+      }
+    } while (transcriptResult.pending);
+  } catch (error) { transcriptResult = {success:false,error:error.message}; }
+
 
   if (!transcriptResult.success) {
     if (transcriptResult.error === "NO_SUPADATA_KEY") {
       showError(
         "API key missing",
-        "Add your Supadata API key in YouTube Digest Settings.",
+        "Add your Supadata API key in Caption Harbor Settings.",
       );
       return;
     }
@@ -794,7 +806,7 @@ async function translateInterfaceSegments(surface, segments, rerender) {
           videoTitle: currentVideoTitle,
         });
       } catch (error) {
-        console.error("[YouTube Digest] Interface batch error:", error);
+        console.error("[Caption Harbor] Interface batch error:", error);
         result = { success: false, error: error.message };
       }
       if (
@@ -821,7 +833,7 @@ async function translateInterfaceSegments(surface, segments, rerender) {
       await updateCache();
     }
   } catch (error) {
-    console.error("[YouTube Digest] Interface translation error:", error);
+    console.error("[Caption Harbor] Interface translation error:", error);
     missing.forEach((segment) =>
       interfaceTranslationFailures.add(segment.cacheKey),
     );
@@ -904,7 +916,7 @@ function renderAnalysisResults(analysis) {
     `;
     li.addEventListener("click", () => {
       debugLog(
-        "[YouTube Digest Panel] Chapter clicked:",
+        "[Caption Harbor Panel] Chapter clicked:",
         chapter.timestamp,
         chapter.timestampSeconds,
       );
@@ -935,7 +947,7 @@ function renderAnalysisResults(analysis) {
     `;
     div.addEventListener("click", () => {
       debugLog(
-        "[YouTube Digest Panel] Quote clicked:",
+        "[Caption Harbor Panel] Quote clicked:",
         quote.timestamp,
         quote.timestampSeconds,
       );
@@ -1003,7 +1015,7 @@ async function saveQuoteAsNote(quote, btn) {
       // Refresh notes list if on Notes tab
       loadNotes(currentVideoId);
     } else {
-      console.error("[YouTube Digest] Save quote as note failed:", result.error);
+      console.error("[Caption Harbor] Save quote as note failed:", result.error);
       btn.textContent = "Error";
       setTimeout(() => {
         btn.textContent = originalText;
@@ -1011,7 +1023,7 @@ async function saveQuoteAsNote(quote, btn) {
       }, 1500);
     }
   } catch (error) {
-    console.error("[YouTube Digest] Save quote as note error:", error);
+    console.error("[Caption Harbor] Save quote as note error:", error);
     btn.textContent = "Error";
     setTimeout(() => {
       btn.textContent = originalText;
@@ -1368,7 +1380,7 @@ function exportTranscript() {
 
   exportText += `TRANSCRIPT:\n\n${transcriptContent}\n`;
   exportText += `\n${"—".repeat(60)}\n`;
-  exportText += `Exported by YouTube Digest\n`;
+  exportText += `Exported by Caption Harbor\n`;
 
   const filename = `${sanitizeFilename(currentVideoTitle)}-transcript.txt`;
   downloadTextFile(exportText, filename);
@@ -1425,7 +1437,7 @@ function showConfigError(configStatus) {
   showState("error");
   document.getElementById("errorTitle").textContent = "API Keys Missing";
   document.getElementById("errorMessage").textContent =
-    `Add your ${missingKeys.join(" and ")} API key${missingKeys.length === 1 ? "" : "s"} in YouTube Digest Settings.`;
+    `Add your ${missingKeys.join(" and ")} API key${missingKeys.length === 1 ? "" : "s"} in Caption Harbor Settings.`;
   document.getElementById("errorBtn").textContent = "Open Settings";
   errorAction = () => chrome.runtime.sendMessage({ action: "openOptions" });
 }
@@ -1544,7 +1556,7 @@ async function triggerAnalysis() {
     // Save to cache now that we have analysis
     await saveToCache(currentVideoId);
   } catch (error) {
-    console.error("[YouTube Digest Panel] Analysis error:", error);
+    console.error("[Caption Harbor Panel] Analysis error:", error);
     if (chapterList)
       chapterList.innerHTML = `<li class="chapter-item" style="color: var(--accent); border: none;">Error: ${escapeHtml(error.message)}</li>`;
   }
@@ -1557,9 +1569,9 @@ async function triggerAnalysis() {
 // ============================================================
 
 async function seekTo(seconds) {
-  debugLog("[YouTube Digest Panel] seekTo called with:", seconds);
+  debugLog("[Caption Harbor Panel] seekTo called with:", seconds);
   if (seconds === undefined || seconds === null) {
-    debugLog("[YouTube Digest Panel] seekTo aborted - no seconds value");
+    debugLog("[Caption Harbor Panel] seekTo aborted - no seconds value");
     return;
   }
 
@@ -1573,11 +1585,11 @@ async function seekTo(seconds) {
     if (youtubeTabId) {
       try {
         await chrome.tabs.sendMessage(youtubeTabId, payload);
-        debugLog("[YouTube Digest Panel] seekTo direct success");
+        debugLog("[Caption Harbor Panel] seekTo direct success");
         return;
       } catch (directErr) {
         debugLog(
-          "[YouTube Digest Panel] Direct seekTo failed, falling back to relay:",
+          "[Caption Harbor Panel] Direct seekTo failed, falling back to relay:",
           directErr.message,
         );
       }
@@ -1588,9 +1600,9 @@ async function seekTo(seconds) {
       action: "relayToContent",
       payload,
     });
-    debugLog("[YouTube Digest Panel] seekTo relay result:", result);
+    debugLog("[Caption Harbor Panel] seekTo relay result:", result);
   } catch (error) {
-    console.error("[YouTube Digest Panel] seekTo error:", error);
+    console.error("[Caption Harbor Panel] seekTo error:", error);
   }
 }
 
@@ -1732,6 +1744,9 @@ function setupExplainFeature() {
   tooltip.setAttribute("aria-label", "Selected transcript actions");
   tooltip.innerHTML = `
     <button class="explain-btn" type="button">Explain</button>
+    <button class="lens-word-btn" type="button">词义</button>
+    <button class="lens-concept-btn" type="button">概念</button>
+    <button class="lens-collect-btn" type="button">收藏</button>
     <button class="selection-note-btn" type="button">Note</button>
   `;
   tooltip.style.display = "none";
@@ -1739,6 +1754,13 @@ function setupExplainFeature() {
 
   let selectedText = "";
   let selectedTimestamp = 0;
+  for (const [selector, action] of [[".lens-word-btn", () => lensExplain("word")], [".lens-concept-btn", () => lensExplain("concept")], [".lens-collect-btn", lensCollect]]) {
+    tooltip.querySelector(selector).addEventListener("click", async () => {
+      lensCaptureSelection(selectedText, selectedTimestamp);
+      tooltip.style.display = "none";
+      try { await action(); } catch (error) { lensStatus(error.message); }
+    });
+  }
 
   // Interacting with either action must preserve the transcript selection and
   // stay isolated from document and row click behavior.
@@ -1787,6 +1809,10 @@ function setupExplainFeature() {
         tooltip.style.top = `${rect.bottom + window.scrollY + 8}px`;
         tooltip.style.left = `${rect.left + rect.width / 2}px`;
         tooltip.style.display = "flex";
+        const bounds = tooltip.getBoundingClientRect();
+        const center = Math.max(bounds.width / 2 + 10, Math.min(innerWidth - bounds.width / 2 - 10, rect.left + rect.width / 2));
+        tooltip.style.left = `${center}px`;
+        if (bounds.bottom > innerHeight - 10) tooltip.style.top = `${Math.max(10, rect.top - bounds.height - 8)}px`;
       } else {
         tooltip.style.display = "none";
       }
@@ -1853,7 +1879,7 @@ function setupExplainFeature() {
           button.disabled = false;
         }, 900);
       } catch (error) {
-        console.error("[YouTube Digest] Save selected note error:", error);
+        console.error("[Caption Harbor] Save selected note error:", error);
         button.textContent = "Error";
         setTimeout(() => {
           button.textContent = originalText;
@@ -2027,7 +2053,7 @@ async function evictOldCacheEntries(maxEntries) {
       .map((e) => e.key);
     if (toRemove.length > 0) {
       await chrome.storage.local.remove(toRemove);
-      debugLog(`[YouTube Digest] Evicted ${toRemove.length} old cache entries`);
+      debugLog(`[Caption Harbor] Evicted ${toRemove.length} old cache entries`);
     }
   } catch (error) {
     console.error("Cache eviction error:", error);
@@ -2091,7 +2117,7 @@ async function loadNotes(videoId) {
       renderNotes(result.notes, videoId);
     }
   } catch (error) {
-    console.error("[YouTube Digest Panel] Load notes error:", error);
+    console.error("[Caption Harbor Panel] Load notes error:", error);
   }
 }
 
@@ -2213,7 +2239,7 @@ async function deleteNote(noteId) {
       noteId: noteId,
     });
   } catch (error) {
-    console.error("[YouTube Digest Panel] Delete note error:", error);
+    console.error("[Caption Harbor Panel] Delete note error:", error);
   }
 }
 
@@ -2393,7 +2419,7 @@ async function loadTranscriptViewState(videoId) {
     if (!Number.isFinite(scrollTop) || scrollTop < 0) return null;
     return { videoId, scrollTop };
   } catch (error) {
-    console.error("[YouTube Digest] Reading position load error:", error);
+    console.error("[Caption Harbor] Reading position load error:", error);
     return null;
   }
 }
@@ -2417,7 +2443,7 @@ async function saveTranscriptViewState(videoId, scrollTop) {
     );
     await storage.set({ [TRANSCRIPT_VIEW_STATE_KEY]: recentStates });
   } catch (error) {
-    console.error("[YouTube Digest] Reading position save error:", error);
+    console.error("[Caption Harbor] Reading position save error:", error);
   }
 }
 

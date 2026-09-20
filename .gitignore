@@ -23,3 +23,7 @@ dist/
 .env.*
 *.pem
 *.key
+
+# Browser verification output
+test-results/
+playwright-report/

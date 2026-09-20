@@ -27,4 +27,18 @@ jobs:
         run: npm run package
 
       - name: Show packaged files
-        run: unzip -Z1 dist/youtube-digest-v*.zip
+        run: unzip -Z1 dist/caption-harbor-v*.zip
+
+  browser-check:
+    name: Validate learning flows in Chromium
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
