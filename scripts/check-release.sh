@@ -25,6 +25,11 @@ fail() {
 # Optional entries are included only when present; manifest references are
 # validated separately, so a referenced-but-missing file still fails.
 public_allowlist=(
+  "fonts/RobotoSlab.ttf"
+  "fonts/RobotoSlab-LICENSE.txt"
+  "fonts/Lexend.ttf"
+  "fonts/Lexend-OFL.txt"
+  "fonts/README.md"
   "reading-settings.js"
   "Install environment.command"
   "native/host.py"

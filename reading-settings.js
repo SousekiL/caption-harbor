@@ -14,6 +14,14 @@
       label: "衬线 · 书本",
       css: 'Georgia, "Songti SC", "SimSun", serif',
     },
+    robotoSlab: {
+      label: "Roboto Slab",
+      css: '"Harbor Roboto Slab", "Songti SC", serif',
+    },
+    lexend: {
+      label: "Lexend",
+      css: '"Harbor Lexend", "PingFang SC", sans-serif',
+    },
     mono: {
       label: "等宽 · 代码",
       css: '"SFMono-Regular", Menlo, Consolas, "PingFang SC", monospace',
@@ -37,7 +45,7 @@
         <label>字号 <output id="reading-size-label" for="reading-size"></output><input id="reading-size" aria-label="字幕字号" type="range" min="12" max="32" step="0.5"></label>
         <button type="button" id="reading-reset">恢复默认</button>
         <p class="harbor-reading-preview">Learn one sentence at a time.<br>一句一句，读懂视频。</p>
-        <small>原文和译文同时生效，自动保存。字体使用本机可用字体。</small>
+        <small>原文和译文同时生效，自动保存。Roboto Slab 和 Lexend 已内置；中文使用系统字体。</small>
         <span id="reading-status" role="status"></span>
       </div>`;
     if (inPanel) document.getElementById("contentArea").before(root);

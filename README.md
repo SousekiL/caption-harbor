@@ -49,7 +49,7 @@ npm run package
 npm run test:browser
 ```
 
-The first browser test run needs `npx playwright install chromium`. The ZIP is written to `dist/caption-harbor-v2.0.3.zip` from a strict public-file allowlist. Tests cover subtitle parsing, transcription jobs, local collection, provider errors, request boundaries and browser interactions using controlled fixtures. Automated fixtures do not establish successful authentication or paid-provider operation on your account. Real Eudic, Supadata and DeepSeek calls require keys entered in Settings and a manual acceptance pass.
+The first browser test run needs `npx playwright install chromium`. The ZIP is written to `dist/caption-harbor-v2.0.4.zip` from a strict public-file allowlist. Tests cover subtitle parsing, transcription jobs, local collection, provider errors, request boundaries and browser interactions using controlled fixtures. Automated fixtures do not establish successful authentication or paid-provider operation on your account. Real Eudic, Supadata and DeepSeek calls require keys entered in Settings and a manual acceptance pass.
 
 See [中文说明](README.zh-CN.md), [privacy](PRIVACY.md), [security](SECURITY.md), and [MIT license](LICENSE).
 
@@ -66,3 +66,6 @@ BrowserOS: `python3 scripts/install-native-host.py --browser browseros`. Browser
 
 
 Subtitle appearance: select system, sans-serif, serif or monospace fonts and a 12–32 px size from the panel or Settings. Changes apply to original and translated captions and persist locally.
+
+
+Roboto Slab 与 Lexend 已内置，无需安装系统字体或连接字体服务；中文回退到系统字体。字体来源和许可见 [fonts/README.md](fonts/README.md)。

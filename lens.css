@@ -1,3 +1,17 @@
+@font-face {
+  font-family: "Harbor Roboto Slab";
+  src: url("fonts/RobotoSlab.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Harbor Lexend";
+  src: url("fonts/Lexend.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
 /* Caption Harbor: paper, deep teal, generous reading space. */
 :root {
   --accent: #246b69;

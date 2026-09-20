@@ -40,7 +40,7 @@
 
 ## 验证
 
-运行 `npm ci`、`npm test`、`npm run check`、`npm run package` 和 `npm run test:browser`。浏览器测试首次需要 `npx playwright install chromium`。安装包在 `dist/caption-harbor-v2.0.3.zip`。
+运行 `npm ci`、`npm test`、`npm run check`、`npm run package` 和 `npm run test:browser`。浏览器测试首次需要 `npx playwright install chromium`。安装包在 `dist/caption-harbor-v2.0.4.zip`。
 
 自动化使用受控字幕、接口和浏览器测试数据；真实视频、账号授权与付费接口需要你填写 key 后进行验收，不应把模拟测试视为真实同步成功。
 
@@ -57,3 +57,6 @@ BrowserOS 用户可运行 `python3 scripts/install-native-host.py --browser brow
 
 
 字幕外观：在侧栏展开“字幕外观”，或进入设置页，可选择系统默认、无衬线、衬线和等宽字体，以及 12–32 px 字号。原文和译文同步生效，自动保存，支持恢复默认。
+
+
+Roboto Slab 与 Lexend 已内置，无需安装系统字体或连接字体服务；中文回退到系统字体。字体来源和许可见 [fonts/README.md](fonts/README.md)。

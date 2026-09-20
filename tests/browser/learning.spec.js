@@ -227,9 +227,14 @@ test("video questions and self-test reveal answers only on request", async ({
   expect(await page.evaluate(() => __player.at(-1).seconds)).toBe(4);
   await page.getByRole("button", { name: "生成自测" }).click();
   await expect(page.locator("#lens-conversation details")).toHaveCount(1);
-  await expect(page.locator("#lens-conversation details")).not.toHaveAttribute("open", "");
+  await expect(page.locator("#lens-conversation details")).not.toHaveAttribute(
+    "open",
+    "",
+  );
   await page.locator("#lens-conversation summary").click();
-  await expect(page.locator("#lens-conversation details")).toContainText("新增收益逐渐减少");
+  await expect(page.locator("#lens-conversation details")).toContainText(
+    "新增收益逐渐减少",
+  );
 });
 test("narrow panel is readable and produces a review screenshot", async ({
   page,
@@ -253,6 +258,23 @@ test("subtitle appearance applies to both languages and resets", async ({
 }) => {
   await setup(page);
   await page.locator(".harbor-reading summary").click();
+  for (const [id, family] of [
+    ["robotoSlab", "Harbor Roboto Slab"],
+    ["lexend", "Harbor Lexend"],
+  ]) {
+    await page.locator("#reading-font").selectOption(id);
+    const loaded = await page.evaluate(async (family) => {
+      const faces = await document.fonts.load(`16px "${family}"`);
+      return (
+        faces.length > 0 && faces.every((face) => face.status === "loaded")
+      );
+    }, family);
+    expect(loaded).toBe(true);
+    await expect(page.locator(".transcript-text").first()).toHaveCSS(
+      "font-family",
+      new RegExp(family),
+    );
+  }
   await page.locator("#reading-font").selectOption("mono");
   await page.locator("#reading-size").focus();
   await page.keyboard.press("End");
