@@ -2306,13 +2306,17 @@ async function playbackTrackingTick(forceScroll = false) {
   const tabId = youtubeTabId;
   playbackTickInFlight = true;
   try {
-    const result = await chrome.runtime.sendMessage({ action: "getPlaybackState", tabId, videoId });
+    const result = await readBoundPlayerState(tabId, videoId);
     if (videoId !== currentVideoId || tabId !== youtubeTabId || !transcriptTabIsActive()) return false;
     if (!result?.success || !Number.isFinite(result.currentTime)) throw new Error(result?.error || "无法读取视频播放位置，请刷新视频页面");
+    if (document.getElementById("lens-status")?.dataset.playbackError === "true") {
+      document.getElementById("lens-status").textContent = "";
+      delete document.getElementById("lens-status").dataset.playbackError;
+    }
     highlightActiveEntry(result.currentTime);
     return forceScroll ? scrollToActiveEntry() : true;
   } catch (error) {
-    if (forceScroll && typeof lensStatus === "function") lensStatus(error.message);
+    if (forceScroll && typeof lensStatus === "function") { lensStatus(error.message); document.getElementById("lens-status").dataset.playbackError = "true"; }
     return false;
   } finally { playbackTickInFlight = false; }
 }

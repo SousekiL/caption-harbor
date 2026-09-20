@@ -25,6 +25,7 @@ fail() {
 # Optional entries are included only when present; manifest references are
 # validated separately, so a referenced-but-missing file still fails.
 public_allowlist=(
+  "player-connection.js"
   "fonts/RobotoSlab.ttf"
   "fonts/RobotoSlab-LICENSE.txt"
   "fonts/Lexend.ttf"

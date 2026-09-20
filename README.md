@@ -49,7 +49,7 @@ npm run package
 npm run test:browser
 ```
 
-The first browser test run needs `npx playwright install chromium`. The ZIP is written to `dist/caption-harbor-v2.0.6.zip` from a strict public-file allowlist. Tests cover subtitle parsing, transcription jobs, local collection, provider errors, request boundaries and browser interactions using controlled fixtures. Automated fixtures do not establish successful authentication or paid-provider operation on your account. Real Eudic, Supadata and DeepSeek calls require keys entered in Settings and a manual acceptance pass.
+The first browser test run needs `npx playwright install chromium`. The ZIP is written to `dist/caption-harbor-v2.0.7.zip` from a strict public-file allowlist. Tests cover subtitle parsing, transcription jobs, local collection, provider errors, request boundaries and browser interactions using controlled fixtures. Automated fixtures do not establish successful authentication or paid-provider operation on your account. Real Eudic, Supadata and DeepSeek calls require keys entered in Settings and a manual acceptance pass.
 
 See [中文说明](README.zh-CN.md), [privacy](PRIVACY.md), [security](SECURITY.md), and [MIT license](LICENSE).
 
@@ -75,3 +75,6 @@ The sidebar uses timestamps above each caption, a compact playback toolbar, and 
 
 
 Playback follows by default, including video timeline seeks and automatic layout scrolling. Only wheel/touch scrolling, scroll-navigation keys, or scrollbar dragging inside captions pauses following. A manual pause survives panel-tab switches until Follow playback is clicked; a fresh panel or new video defaults to following.
+
+
+Playback state now travels directly from the bound YouTube tab to the side panel. Empty or missing content-script replies fall back to a scoped media-element read, with video-ID checks before and after, instead of relying on the background runtime reply.

@@ -40,7 +40,7 @@
 
 ## 验证
 
-运行 `npm ci`、`npm test`、`npm run check`、`npm run package` 和 `npm run test:browser`。浏览器测试首次需要 `npx playwright install chromium`。安装包在 `dist/caption-harbor-v2.0.6.zip`。
+运行 `npm ci`、`npm test`、`npm run check`、`npm run package` 和 `npm run test:browser`。浏览器测试首次需要 `npx playwright install chromium`。安装包在 `dist/caption-harbor-v2.0.7.zip`。
 
 自动化使用受控字幕、接口和浏览器测试数据；真实视频、账号授权与付费接口需要你填写 key 后进行验收，不应把模拟测试视为真实同步成功。
 
@@ -66,3 +66,6 @@ Roboto Slab 与 Lexend 已内置，无需安装系统字体或连接字体服务
 
 
 默认持续跟随视频，点击视频进度条或自动布局滚动不会退出同步。只有在字幕区域使用滚轮、触摸滑动、滚动按键或拖动滚动条时才暂停跟随；切换插件标签页保留这个手动暂停状态，点击“跟随播放”恢复。重新打开插件或切换新视频默认跟随。
+
+
+播放位置改为由侧栏直接读取对应视频。页面消息返回为空或连接失效时，自动回退到读取该视频的媒体元素，并检查视频 ID，避免后台空响应造成无法跟随。

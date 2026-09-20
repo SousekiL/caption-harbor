@@ -90,6 +90,24 @@ test("unpacked extension starts its real service worker and persists learning se
     });
     expect(playback.valid).toEqual({ success: true, currentTime: 42.5 });
     expect(playback.wrong.success).toBe(false);
+    await page.addScriptTag({
+      url: `chrome-extension://${id}/player-connection.js`,
+    });
+    const directAndFallback = await page.evaluate(async () => {
+      const tabs = await chrome.tabs.query({
+        url: "https://www.youtube.com/watch?v=video123",
+      });
+      const direct = await readBoundPlayerState(tabs[0].id, "video123");
+      const original = chrome.tabs.sendMessage;
+      try {
+        chrome.tabs.sendMessage = async () => undefined;
+        const fallback = await readBoundPlayerState(tabs[0].id, "video123");
+        return { direct: direct.currentTime, fallback: fallback.currentTime };
+      } finally {
+        chrome.tabs.sendMessage = original;
+      }
+    });
+    expect(directAndFallback).toEqual({ direct: 42.5, fallback: 42.5 });
     expect(errors).toEqual([]);
   } finally {
     await context.close();

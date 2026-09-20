@@ -48,6 +48,10 @@ async function setup(page) {
       },
       windows: { getCurrent: async () => ({ id: 1 }) },
       tabs: {
+        get: async (id) => ({
+          id,
+          url: "https://www.youtube.com/watch?v=video123",
+        }),
         query: async () => [
           {
             id: 1,
@@ -59,9 +63,11 @@ async function setup(page) {
         onActivated: { addListener() {} },
         sendMessage: async (id, payload) => {
           window.__player.push(payload);
+          if (payload.action === "getCurrentTime")
+            window.__lastPlayback = { tabId: id, videoId: payload.videoId };
           return {
             success: true,
-            currentTime: 0,
+            currentTime: window.__time,
             loop: payload.command === "loop",
           };
         },
