@@ -9,3 +9,6 @@ Eudic operations and paid transcript requests are restricted to extension pages,
 The project does not encrypt keys in local Chrome storage. Anyone with access to that profile may access them. Rotate credentials through their provider if the profile is exposed. Use provider spending limits for paid transcription. An uncertain transcription timeout is preserved rather than silently resubmitted.
 
 Run npm test, npm run check and npm run package before publishing. Browser tests use synthetic data; do not record real credentials in screenshots or fixtures.
+
+
+The optional native host supports only status and Eudic-token retrieval, validates the caller origin, and rejects symlinked or non-owner-only environment files. It does not evaluate dotenv contents as shell code. The installer and native host contain no credentials and can be redistributed; `secrets.env` and the generated local host configuration must stay outside the repository. Native protocol tests use disposable credentials and browser profiles.

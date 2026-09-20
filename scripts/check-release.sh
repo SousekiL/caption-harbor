@@ -25,6 +25,9 @@ fail() {
 # Optional entries are included only when present; manifest references are
 # validated separately, so a referenced-but-missing file still fails.
 public_allowlist=(
+  "Install environment.command"
+  "native/host.py"
+  "scripts/install-native-host.py"
   "lens-core.js"
   "lens-transcript.js"
   "lens-background.js"
@@ -248,6 +251,7 @@ node - "${credential_scan_files[@]}" <<'NODE'
 const fs = require("fs");
 
 const patterns = [
+  ["Eudic NIS token", /\bNIS\s+[A-Za-z0-9+/]{24,}={0,2}/g],
   ["private key block", /-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----/g],
   ["OpenAI-style key", /\bsk-[A-Za-z0-9_-]{20,}\b/g],
   ["Supadata-style key", /\bsd_[A-Za-z0-9_-]{16,}\b/g],
@@ -264,7 +268,7 @@ const patterns = [
 
 let found = false;
 for (const file of process.argv.slice(2)) {
-  if (!/\.(?:js|json|html|css|md|txt|yml|yaml|sh)$/i.test(file) && file !== "LICENSE") {
+  if (!/\.(?:js|json|html|css|md|txt|yml|yaml|sh|py)$/i.test(file) && file !== "LICENSE") {
     continue;
   }
   const text = fs.readFileSync(file, "utf8");

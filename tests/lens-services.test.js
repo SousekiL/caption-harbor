@@ -6,6 +6,9 @@ const core = require("../lens-core");
 function harness(
   initial = {},
   fetcher = async () => ({ ok: true, status: 201, json: async () => ({}) }),
+  native = async () => {
+    throw new Error("not installed");
+  },
 ) {
   const db = structuredClone(initial),
     listeners = [],
@@ -25,6 +28,7 @@ function harness(
     chrome: {
       runtime: {
         id: "ext",
+        sendNativeMessage: native,
         getURL: (x) => "chrome-extension://ext/" + x,
         onMessage: { addListener: (fn) => listeners.push(fn) },
       },
@@ -206,4 +210,23 @@ test("finished cached transcript does not submit a second paid request", async (
   const result = await h.run("lensFetchTranscript", "video123");
   assert.equal(result.transcriptText, "cached");
   assert.equal(h.requests.length, 0);
+});
+
+test("environment credential is used only in request memory, not browser storage", async () => {
+  const h = harness(
+    { lens_settings: { credentialSource: "environment" } },
+    undefined,
+    async (name, message) => {
+      assert.equal(name, "com.caption_harbor.environment");
+      return message.action === "status"
+        ? { success: true, configured: true }
+        : { success: true, token: "NIS local-fixture" };
+    },
+  );
+  await h.run("lensHandle", { action: "lensCategories" });
+  assert.equal(h.requests[0].opts.headers.Authorization, "NIS local-fixture");
+  assert.doesNotMatch(JSON.stringify(h.db), /local-fixture/);
+  const status = await h.run("lensHandle", { action: "lensEnvironmentStatus" });
+  assert.equal(status.configured, true);
+  assert.equal(status.token, undefined);
 });

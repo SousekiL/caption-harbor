@@ -49,6 +49,14 @@ npm run package
 npm run test:browser
 ```
 
-The first browser test run needs `npx playwright install chromium`. The ZIP is written to `dist/caption-harbor-v2.0.0.zip` from a strict public-file allowlist. Tests cover subtitle parsing, transcription jobs, local collection, provider errors, request boundaries and browser interactions using controlled fixtures. Automated fixtures do not establish successful authentication or paid-provider operation on your account. Real Eudic, Supadata and DeepSeek calls require keys entered in Settings and a manual acceptance pass.
+The first browser test run needs `npx playwright install chromium`. The ZIP is written to `dist/caption-harbor-v2.0.1.zip` from a strict public-file allowlist. Tests cover subtitle parsing, transcription jobs, local collection, provider errors, request boundaries and browser interactions using controlled fixtures. Automated fixtures do not establish successful authentication or paid-provider operation on your account. Real Eudic, Supadata and DeepSeek calls require keys entered in Settings and a manual acceptance pass.
 
 See [中文说明](README.zh-CN.md), [privacy](PRIVACY.md), [security](SECURITY.md), and [MIT license](LICENSE).
+
+## Optional local environment credentials (2.0.1)
+
+Chrome cannot read shell environment variables directly. The optional native-messaging bridge reads `EUDIC_TOKEN` from its process environment, or loads it from `~/.config/caption-harbor/secrets.env` (owner-only permissions, 0600). The token is passed only to the extension background request in memory and is not copied into browser storage, source files or release ZIPs. This is a per-application environment file, not a system-wide shell export.
+
+On macOS, double-click **Install environment.command** in the folder Chrome actually loaded. Alternatively run `npm run install:environment`. On Linux run `python3 scripts/install-native-host.py`. For an extension loaded from another folder, pass `--extension-id` with its ID from `chrome://extensions`. The installer registers only that extension and requires permission to write the browser's NativeMessagingHosts directory. On macOS, if the app is denied access to the Chrome profile, run the installer in Terminal with the necessary OS file access. Windows native installation is not currently supported; manual token entry remains available.
+
+Choose **本机环境变量（EUDIC_TOKEN）** in learning Settings, check the environment connection, then connect and select your Eudic wordbook. Manual mode remains available. Selecting environment mode and saving clears any previously stored browser token. The environment file never runs shell commands or variable interpolation. `npm run test:native` verifies the host protocol and origin boundary.

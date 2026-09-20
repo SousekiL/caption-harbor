@@ -13,9 +13,32 @@ async function lensSettings() {
     ...(await chrome.storage.local.get("lens_settings")).lens_settings,
   };
 }
+async function lensEnvironment(action) {
+  try {
+    const result = await chrome.runtime.sendNativeMessage(
+      "com.caption_harbor.environment",
+      { action },
+    );
+    if (!result?.success) throw new Error("unavailable");
+    return result;
+  } catch {
+    throw new Error(
+      "请先在设置里连接欧路词典：本机环境读取未就绪，请安装本机桥接并配置 EUDIC_TOKEN。",
+    );
+  }
+}
+async function lensEudicToken(config) {
+  if (config.credentialSource !== "environment" && config.eudicToken)
+    return config.eudicToken;
+  const result = await lensEnvironment("getEudicToken");
+  if (typeof result.token !== "string" || !result.token.trim())
+    throw new Error("本机 EUDIC_TOKEN 为空");
+  return result.token.trim();
+}
+
 async function lensEudic(path, method = "GET", body) {
   const config = await lensSettings();
-  if (!config.eudicToken) throw new Error("请先在设置里连接欧路词典");
+  const token = await lensEudicToken(config);
   // Serialize ALL calls, including reads, to remain below the official rate limit.
   const last =
     (await chrome.storage.local.get("lens_eudic_last")).lens_eudic_last || 0;
@@ -26,7 +49,7 @@ async function lensEudic(path, method = "GET", body) {
   const response = await fetch(`https://api.frdic.com/api/open/v1/${path}`, {
     method,
     headers: {
-      Authorization: `NIS ${config.eudicToken.replace(/^NIS\s+/i, "")}`,
+      Authorization: `NIS ${token.replace(/^NIS\s+/i, "")}`,
       "Content-Type": "application/json",
     },
     ...(body ? { body: JSON.stringify(body) } : {}),
@@ -68,6 +91,8 @@ async function lensSyncOne(id) {
 }
 async function lensHandle(message) {
   switch (message.action) {
+    case "lensEnvironmentStatus":
+      return lensEnvironment("status");
     case "lensCategories":
       return lensSerial(async () => ({
         success: true,
@@ -176,12 +201,10 @@ async function lensHandle(message) {
               request: selected,
               transcript: context,
               conversation: Array.isArray(message.history)
-                ? message.history
-                    .slice(-8)
-                    .map((x) => ({
-                      role: x.role === "assistant" ? "assistant" : "user",
-                      text: String(x.text || "").slice(0, 4000),
-                    }))
+                ? message.history.slice(-8).map((x) => ({
+                    role: x.role === "assistant" ? "assistant" : "user",
+                    text: String(x.text || "").slice(0, 4000),
+                  }))
                 : [],
             }),
           },

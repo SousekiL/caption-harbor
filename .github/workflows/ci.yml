@@ -23,6 +23,9 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Test native environment bridge
+        run: npm run test:native
+
       - name: Build allowlisted ZIP
         run: npm run package
 

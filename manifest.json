@@ -1,14 +1,15 @@
 {
   "manifest_version": 3,
   "name": "Caption Harbor",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "minimum_chrome_version": "116",
   "description": "Learn from YouTube with bilingual captions, audio transcription, Eudic vocabulary, AI questions, and notes.",
   "permissions": [
     "sidePanel",
     "storage",
     "tabs",
-    "scripting"
+    "scripting",
+    "nativeMessaging"
   ],
   "host_permissions": [
     "https://www.youtube.com/*",

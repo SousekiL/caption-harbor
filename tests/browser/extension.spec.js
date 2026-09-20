@@ -48,3 +48,72 @@ test("unpacked extension starts its real service worker and persists learning se
     fs.rmSync(profile, { recursive: true, force: true });
   }
 });
+
+test("native host reads private environment configuration without persisting token", async () => {
+  const { spawnSync } = require("node:child_process");
+  const root = path.resolve(__dirname, "../..");
+  const temp = fs.mkdtempSync(
+    path.join(os.tmpdir(), "caption-harbor-native-test-"),
+  );
+  const profile = path.join(temp, "browser");
+  const config = path.join(temp, "private");
+  fs.mkdirSync(config, { mode: 0o700 });
+  fs.writeFileSync(
+    path.join(config, "secrets.env"),
+    "EUDIC_TOKEN='NIS fixture-native'\n",
+    { mode: 0o600 },
+  );
+  const installed = spawnSync(
+    "python3",
+    [
+      path.join(root, "scripts/install-native-host.py"),
+      "--profile-dir",
+      profile,
+      "--config-dir",
+      config,
+    ],
+    { encoding: "utf8" },
+  );
+  expect(installed.status).toBe(0);
+  const context = await chromium.launchPersistentContext(profile, {
+    headless: true,
+    channel: "chromium",
+    args: [`--disable-extensions-except=${root}`, `--load-extension=${root}`],
+  });
+  try {
+    let worker = context.serviceWorkers()[0];
+    if (!worker) worker = await context.waitForEvent("serviceworker");
+    const id = new URL(worker.url()).host;
+    const manifest = JSON.parse(
+      fs.readFileSync(
+        path.join(
+          profile,
+          "NativeMessagingHosts/com.caption_harbor.environment.json",
+        ),
+      ),
+    );
+    expect(manifest.allowed_origins).toContain(`chrome-extension://${id}/`);
+    const page = await context.newPage();
+    await page.goto(`chrome-extension://${id}/options.html`);
+    await page.locator("#harbor-environment").click();
+    await expect(page.locator("#harbor-environment-status")).toContainText(
+      "已找到本机",
+    );
+    expect(
+      await page.evaluate(async () => {
+        const value = await chrome.runtime.sendNativeMessage(
+          "com.caption_harbor.environment",
+          { action: "getEudicToken" },
+        );
+        const storage = JSON.stringify(await chrome.storage.local.get(null));
+        return (
+          value.token === "NIS fixture-native" &&
+          !storage.includes("fixture-native")
+        );
+      }),
+    ).toBe(true);
+  } finally {
+    await context.close();
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+});

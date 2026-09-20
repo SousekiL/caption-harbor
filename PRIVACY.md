@@ -19,3 +19,7 @@ Uninstalling the extension may remove local data. Clearing local words leaves Eu
 ## Permissions
 
 `sidePanel` displays the learning panel; `tabs` identifies the active YouTube video; `scripting` supports the inherited player integration; `storage` persists local learning state. Host permissions cover YouTube, Supadata, DeepSeek and Eudic only. No microphone permission, browsing-history permission or all-sites permission is requested.
+
+## Optional environment bridge
+
+The `nativeMessaging` permission permits communication with `com.caption_harbor.environment`. In environment mode, the Eudic token comes from the native process environment or an owner-only `~/.config/caption-harbor/secrets.env` file. It is not persisted in Chrome storage. Only the background Eudic request uses it; settings receive a configured/not-configured status rather than the token. Selecting this mode clears a previous manually stored Eudic token when settings are saved. Supadata and DeepSeek settings are unchanged. The native helper has no network access of its own, executes no arbitrary commands, and accepts only the explicitly registered extension origin.

@@ -27,3 +27,9 @@ dist/
 # Browser verification output
 test-results/
 playwright-report/
+
+# Local native-host artifacts
+__pycache__/
+*.pyc
+bridge.json
+secrets.env

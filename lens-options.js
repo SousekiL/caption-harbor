@@ -5,6 +5,9 @@
   root.innerHTML = `<h2>Caption Harbor · 学习设置</h2>
   <label><input id="harbor-auto" type="checkbox"> 没有字幕时自动转录音频</label>
   <p>优先读取已有字幕；否则由 Supadata 转录公开视频音频。转录按视频分钟消耗额外额度（目前每分钟 2 credits），长视频可能等待数分钟。</p>
+  <label>欧路授权来源 <select id="harbor-source"><option value="environment">本机环境变量（EUDIC_TOKEN）</option><option value="manual">手动填写</option></select></label>
+  <p>本机模式通过已安装的本机桥接读取，不会把 Token 保存进浏览器。<span id="harbor-environment-status"></span></p>
+  <button id="harbor-environment" type="button">检查本机环境配置</button>
   <label>欧路授权 Token <input id="harbor-token" type="password" autocomplete="off" placeholder="填写你的欧路授权信息"></label>
   <p><a href="https://my.eudic.net/OpenAPI/Authorization" target="_blank" rel="noreferrer">获取欧路授权</a> · Token 仅保存在本机，不发送给 AI。</p>
   <button id="harbor-connect" type="button">保存并读取生词本</button>
@@ -23,6 +26,13 @@
   };
   $("auto").checked = config.autoTranscribe;
   $("token").value = config.eudicToken || "";
+  $("source").value =
+    config.credentialSource || (config.eudicToken ? "manual" : "environment");
+  const updateSource = () => {
+    $("token").disabled = $("source").value === "environment";
+  };
+  $("source").addEventListener("change", updateSource);
+  updateSource();
   if (config.categoryId && config.categoryId !== "0")
     $("category").add(
       new Option(config.categoryName || config.categoryId, config.categoryId),
@@ -32,7 +42,9 @@
     await chrome.storage.local.set({
       lens_settings: {
         autoTranscribe: $("auto").checked,
-        eudicToken: $("token").value.trim(),
+        eudicToken:
+          $("source").value === "manual" ? $("token").value.trim() : "",
+        credentialSource: $("source").value,
         categoryId: $("category").value,
         categoryName: $("category").selectedOptions[0]?.textContent || "",
       },
@@ -64,6 +76,14 @@
       : "0";
     $("status").textContent = "已连接欧路，请选择目标生词本并保存。";
   }
+  run("environment", async () => {
+    const result = await chrome.runtime.sendMessage({
+      action: "lensEnvironmentStatus",
+    });
+    if (!result.success) throw new Error(result.error);
+    $("environment-status").textContent =
+      "已找到本机 EUDIC_TOKEN（不显示内容）。";
+  });
   run("connect", async () => {
     await save();
     await categories();

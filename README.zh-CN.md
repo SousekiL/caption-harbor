@@ -40,6 +40,14 @@
 
 ## 验证
 
-运行 `npm ci`、`npm test`、`npm run check`、`npm run package` 和 `npm run test:browser`。浏览器测试首次需要 `npx playwright install chromium`。安装包在 `dist/caption-harbor-v2.0.0.zip`。
+运行 `npm ci`、`npm test`、`npm run check`、`npm run package` 和 `npm run test:browser`。浏览器测试首次需要 `npx playwright install chromium`。安装包在 `dist/caption-harbor-v2.0.1.zip`。
 
 自动化使用受控字幕、接口和浏览器测试数据；真实视频、账号授权与付费接口需要你填写 key 后进行验收，不应把模拟测试视为真实同步成功。
+
+## 从本机环境配置读取欧路 key（2.0.1）
+
+Chrome 插件无法直接读取系统环境变量，因此使用一个权限范围很小的本机桥接。它优先读取自身进程的 `EUDIC_TOKEN`；未设置时，从 `~/.config/caption-harbor/secrets.env` 加载这一变量。环境文件权限必须为 0600，只允许当前用户读写。它属于应用私有环境配置，不会修改系统全局环境或 shell 启动文件。
+
+在 Chrome 实际加载的扩展文件夹中双击 **Install environment.command**（macOS），或运行 `python3 scripts/install-native-host.py`（macOS/Linux）。在设置中选“本机环境变量（EUDIC_TOKEN）”，检查连接，再读取和选择生词本。key 只在发起欧路请求时经过内存，不存入浏览器、不进入源码和安装包。切换到本机模式并保存会清除之前保存在浏览器中的 Token。
+
+macOS 如果阻止写入 Chrome 配置目录，请在有相应文件访问权限的终端中运行安装器。扩展装在另一文件夹时，需要用其 `chrome://extensions` 页面显示的 ID 运行安装器的 `--extension-id` 参数。Windows 暂时使用手动填写模式。更新插件后需在扩展管理页重新加载，并接受新增的本机通信权限。

@@ -1,6 +1,6 @@
 {
   "name": "caption-harbor",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "private": true,
   "description": "Learn from YouTube with bilingual captions, audio transcription, Eudic vocabulary, AI questions, and notes.",
   "license": "MIT",
@@ -8,7 +8,9 @@
     "test": "node --test tests/*.test.js",
     "check": "bash scripts/check-release.sh",
     "package": "bash scripts/package-extension.sh",
-    "test:browser": "playwright test"
+    "test:browser": "playwright test",
+    "install:environment": "python3 scripts/install-native-host.py",
+    "test:native": "python3 -m unittest discover -s tests/native -p \"test_*.py\""
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
