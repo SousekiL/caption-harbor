@@ -180,3 +180,79 @@ button:disabled {
   flex: 1 1 auto;
   padding: 8px;
 }
+/* Caption typography applies equally to original, translated and bilingual rows. */
+#transcriptList .transcript-text,
+#transcriptList .transcript-copy,
+#transcriptList .transcript-original,
+#transcriptList .transcript-translation,
+.harbor-reading-preview {
+  font-family: var(--harbor-caption-font, var(--font-reading));
+  font-size: var(--harbor-caption-size, 13.5px);
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+.harbor-reading {
+  margin: 6px 16px 10px;
+  border: 1px solid #d6dfd8;
+  border-radius: 10px;
+  background: #fff;
+  color: #243432;
+  flex-shrink: 0;
+}
+.harbor-reading summary {
+  cursor: pointer;
+  padding: 9px 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.harbor-reading h2 {
+  font-size: 18px;
+  padding: 14px 16px 0;
+}
+.harbor-reading-controls {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+.harbor-reading-controls label {
+  display: grid;
+  gap: 5px;
+  font-size: 13px;
+}
+.harbor-reading-controls select {
+  width: 100%;
+  padding: 7px;
+  border: 1px solid #c7d6d0;
+  border-radius: 6px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+}
+.harbor-reading-controls input {
+  width: 100%;
+  accent-color: #246b69;
+}
+.harbor-reading-controls button {
+  justify-self: start;
+  padding: 6px 10px;
+  border: 1px solid #c7d6d0;
+  border-radius: 6px;
+  background: white;
+  color: #245654;
+  cursor: pointer;
+}
+.harbor-reading-controls small,
+#reading-status {
+  font-size: 11px;
+  color: #5d6b66;
+}
+.harbor-reading-preview {
+  margin: 0;
+  padding: 10px;
+  background: #f5f7f3;
+  border-radius: 8px;
+}
+body:has(.settings-shell) > .harbor-reading {
+  max-width: 720px;
+  margin: 24px auto;
+}

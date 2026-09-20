@@ -40,7 +40,26 @@ test("unpacked extension starts its real service worker and persists learning se
     );
     expect(sync.row.status).toBe("failed");
     expect(sync.row.error).toContain("欧路");
+    await page.locator("#reading-font").selectOption("serif");
+    await page.locator("#reading-size").focus();
+    await page.keyboard.press("End");
+    await expect(page.locator("#reading-size-label")).toHaveText("32 px");
+    await expect
+      .poll(() =>
+        page.evaluate(
+          async () =>
+            (await chrome.storage.local.get("harbor_reading")).harbor_reading
+              ?.size,
+        ),
+      )
+      .toBe(32);
     await page.reload();
+    await expect(page.locator("#reading-font")).toHaveValue("serif");
+    await expect(page.locator("#reading-size")).toHaveValue("32");
+    await expect(page.locator(".harbor-reading-preview")).toHaveCSS(
+      "font-size",
+      "32px",
+    );
     await expect(page.locator("#harbor-auto")).not.toBeChecked();
     expect(errors).toEqual([]);
   } finally {

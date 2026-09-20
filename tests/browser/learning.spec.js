@@ -226,10 +226,10 @@ test("video questions and self-test reveal answers only on request", async ({
   await page.getByRole("button", { name: "[00:00:04]", exact: true }).click();
   expect(await page.evaluate(() => __player.at(-1).seconds)).toBe(4);
   await page.getByRole("button", { name: "生成自测" }).click();
-  await expect(page.locator("details")).toHaveCount(1);
-  await expect(page.locator("details")).not.toHaveAttribute("open", "");
-  await page.locator("summary").click();
-  await expect(page.locator("details")).toContainText("新增收益逐渐减少");
+  await expect(page.locator("#lens-conversation details")).toHaveCount(1);
+  await expect(page.locator("#lens-conversation details")).not.toHaveAttribute("open", "");
+  await page.locator("#lens-conversation summary").click();
+  await expect(page.locator("#lens-conversation details")).toContainText("新增收益逐渐减少");
 });
 test("narrow panel is readable and produces a review screenshot", async ({
   page,
@@ -246,4 +246,38 @@ test("narrow panel is readable and produces a review screenshot", async ({
     fullPage: true,
     animations: "disabled",
   });
+});
+
+test("subtitle appearance applies to both languages and resets", async ({
+  page,
+}) => {
+  await setup(page);
+  await page.locator(".harbor-reading summary").click();
+  await page.locator("#reading-font").selectOption("mono");
+  await page.locator("#reading-size").focus();
+  await page.keyboard.press("End");
+  await expect(page.locator(".transcript-text").first()).toHaveCSS(
+    "font-size",
+    "32px",
+  );
+  await expect(page.locator(".transcript-text").first()).toHaveCSS(
+    "font-family",
+    /Menlo/,
+  );
+  await page.evaluate(() =>
+    renderTranscriptModeRows(getActiveTranscriptSegments(), "bilingual"),
+  );
+  await expect(page.locator(".transcript-original").first()).toHaveCSS(
+    "font-size",
+    "32px",
+  );
+  await expect(page.locator(".transcript-translation").first()).toHaveCSS(
+    "font-size",
+    "32px",
+  );
+  await page.locator("#reading-reset").click();
+  await expect(page.locator(".transcript-original").first()).toHaveCSS(
+    "font-size",
+    "13.5px",
+  );
 });
