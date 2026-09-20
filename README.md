@@ -49,7 +49,7 @@ npm run package
 npm run test:browser
 ```
 
-The first browser test run needs `npx playwright install chromium`. The ZIP is written to `dist/caption-harbor-v2.0.1.zip` from a strict public-file allowlist. Tests cover subtitle parsing, transcription jobs, local collection, provider errors, request boundaries and browser interactions using controlled fixtures. Automated fixtures do not establish successful authentication or paid-provider operation on your account. Real Eudic, Supadata and DeepSeek calls require keys entered in Settings and a manual acceptance pass.
+The first browser test run needs `npx playwright install chromium`. The ZIP is written to `dist/caption-harbor-v2.0.2.zip` from a strict public-file allowlist. Tests cover subtitle parsing, transcription jobs, local collection, provider errors, request boundaries and browser interactions using controlled fixtures. Automated fixtures do not establish successful authentication or paid-provider operation on your account. Real Eudic, Supadata and DeepSeek calls require keys entered in Settings and a manual acceptance pass.
 
 See [中文说明](README.zh-CN.md), [privacy](PRIVACY.md), [security](SECURITY.md), and [MIT license](LICENSE).
 
@@ -60,3 +60,6 @@ Chrome cannot read shell environment variables directly. The optional native-mes
 On macOS, double-click **Install environment.command** in the folder Chrome actually loaded. Alternatively run `npm run install:environment`. On Linux run `python3 scripts/install-native-host.py`. For an extension loaded from another folder, pass `--extension-id` with its ID from `chrome://extensions`. The installer registers only that extension and requires permission to write the browser's NativeMessagingHosts directory. On macOS, if the app is denied access to the Chrome profile, run the installer in Terminal with the necessary OS file access. Windows native installation is not currently supported; manual token entry remains available.
 
 Choose **本机环境变量（EUDIC_TOKEN）** in learning Settings, check the environment connection, then connect and select your Eudic wordbook. Manual mode remains available. Selecting environment mode and saving clears any previously stored browser token. The environment file never runs shell commands or variable interpolation. `npm run test:native` verifies the host protocol and origin boundary.
+
+
+BrowserOS: `python3 scripts/install-native-host.py --browser browseros`. BrowserOS neo: `--browser browseros-neo`. The installer auto-detects an existing profile (BrowserOS, Chrome, then BrowserOS neo). `--profile-dir` overrides detection.

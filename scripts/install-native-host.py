@@ -18,11 +18,29 @@ def extension_id(root):
     return ''.join(chr(ord('a') + int(c, 16)) for c in digest)
 
 
+def browser_profile(browser, home=None, platform=None):
+    home = Path.home() if home is None else Path(home)
+    platform = sys.platform if platform is None else platform
+    if platform == 'darwin':
+        base = home/'Library'/'Application Support'
+        locations = {'browseros':base/'BrowserOS', 'browseros-neo':base/'BrowserClaw', 'chrome':base/'Google'/'Chrome'}
+    else:
+        base = home/'.config'
+        locations = {'browseros':base/'browseros', 'browseros-neo':base/'browserclaw', 'chrome':base/'google-chrome'}
+    if browser != 'auto':
+        return locations[browser]
+    for name in ('browseros', 'chrome', 'browseros-neo'):
+        if locations[name].is_dir():
+            return locations[name]
+    raise ValueError('No supported browser profile found. Specify --browser or --profile-dir.')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--extension-id', help='ID shown at chrome://extensions; defaults to this checkout path')
     parser.add_argument('--config-dir', type=Path, default=Path.home()/'.config'/'caption-harbor')
     parser.add_argument('--profile-dir', type=Path, help='Custom browser user-data directory')
+    parser.add_argument('--browser', choices=['auto', 'browseros', 'browseros-neo', 'chrome'], default='auto', help='Browser whose native host directory to register')
     args = parser.parse_args()
     if sys.platform not in ('darwin', 'linux'):
         parser.error('The native bridge installer currently supports macOS and Linux.')
@@ -49,11 +67,8 @@ def main():
     launcher.chmod(0o700)
     if args.profile_dir:
         profiles = [args.profile_dir.expanduser().resolve()]
-    elif sys.platform == 'darwin':
-        base = Path.home()/'Library'/'Application Support'
-        profiles = [base/'Google'/'Chrome']
     else:
-        profiles = [Path.home()/'.config'/'google-chrome']
+        profiles = [browser_profile(args.browser)]
     manifest = {'name':HOST,'description':'Read the local EUDIC_TOKEN for Caption Harbor','path':str(launcher),'type':'stdio','allowed_origins':origins}
     for profile in profiles:
         directory = profile/'NativeMessagingHosts'
@@ -62,11 +77,15 @@ def main():
         file.write_text(json.dumps(manifest,indent=2)+'\n')
         file.chmod(0o600)
     print('Environment bridge installed for extension '+identifier+'. No credential values displayed.')
+    print('Browser profile: '+str(profiles[0]))
 
 
 if __name__ == '__main__':
     try:
         main()
+    except ValueError as error:
+        print(str(error), file=sys.stderr)
+        sys.exit(1)
     except PermissionError:
-        print('macOS or filesystem permissions prevented browser registration. Run this installer from Terminal with access to the Chrome profile directory.', file=sys.stderr)
+        print('macOS or filesystem permissions prevented browser registration. Run this installer from Terminal with access to the selected browser profile directory.', file=sys.stderr)
         sys.exit(1)
