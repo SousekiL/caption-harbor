@@ -523,12 +523,11 @@ function lensInit() {
   );
   section("history", '<h2>学习记录</h2><div id="lens-history-list"></div>');
   const toolbar = lensNode("div", undefined, "lens-tools");
-  const brand = lensNode(
-    "div",
-    "CAPTION HARBOR · 字幕里的学习港湾",
-    "lens-brand",
-  );
-  lens$("contentArea").before(brand, toolbar);
+  lens$("contentArea").before(toolbar);
+  const fileMenu = lensNode("details", undefined, "lens-file-menu");
+  fileMenu.append(lensNode("summary", "字幕文件"));
+  const fileActions = lensNode("div", undefined, "lens-file-actions");
+  fileMenu.append(fileActions);
   const file = lensNode("input");
   file.type = "file";
   file.accept = ".srt,.vtt";
@@ -541,12 +540,12 @@ function lensInit() {
     }
     file.value = "";
   });
-  toolbar.append(
+  fileActions.append(
     file,
     lensButton("导入字幕", () => file.click()),
   );
   for (const format of ["srt", "vtt"])
-    toolbar.append(
+    fileActions.append(
       lensButton(format.toUpperCase(), () => {
         if (!currentTranscript?.length) throw new Error("还没有字幕");
         downloadTextFile(
@@ -560,6 +559,15 @@ function lensInit() {
     lensButton("暂停 / 播放", () => lensPlayer("toggle")),
     lensButton("单句循环", () => lensPlayer("loop")),
   );
+  const existingActions = document.querySelector(".transcript-actions");
+  if (existingActions) fileActions.append(existingActions);
+  toolbar.append(fileMenu);
+  document.addEventListener("click", (event) => {
+    if (!fileMenu.contains(event.target)) fileMenu.open = false;
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") fileMenu.open = false;
+  });
   const status = lensNode("p", "", "lens-status");
   status.id = "lens-status";
   status.setAttribute("role", "status");

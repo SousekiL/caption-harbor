@@ -153,12 +153,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.action === "getCurrentTime") {
-    // Return the current video playback time (used by auto-scroll)
     const video = document.querySelector("video.html5-main-video");
-    sendResponse({
-      currentTime: video ? Math.floor(video.currentTime) : 0,
-      paused: video ? video.paused : true,
-    });
+    const videoId = new URL(location.href).searchParams.get("v");
+    if (!video || (message.videoId && message.videoId !== videoId)) {
+      sendResponse({success:false,error:"视频播放器尚未就绪或已切换"}); return false;
+    }
+    sendResponse({success:true,currentTime:video.currentTime,paused:video.paused});
     return false;
   }
 

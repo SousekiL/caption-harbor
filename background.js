@@ -499,6 +499,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   // Relay messages from side panel to content script
+  if (message.action === "getPlaybackState") {
+    if (sender.id !== chrome.runtime.id || !sender.url?.startsWith(chrome.runtime.getURL(""))) return false;
+    (async () => {
+      if (!Number.isInteger(message.tabId)) throw new Error("视频标签页无效");
+      const tab = await chrome.tabs.get(message.tabId);
+      const url = new URL(tab.url);
+      if (url.origin !== "https://www.youtube.com" || url.searchParams.get("v") !== message.videoId) throw new Error("视频已切换，请重新打开侧栏");
+      const payload = {action:"getCurrentTime", videoId:message.videoId};
+      let result;
+      try { result = await chrome.tabs.sendMessage(message.tabId, payload); }
+      catch (error) {
+        if (!/Receiving end does not exist|Could not establish connection/i.test(error.message)) throw error;
+        await chrome.scripting.executeScript({target:{tabId:message.tabId},files:["content.js"]});
+        result = await chrome.tabs.sendMessage(message.tabId, payload);
+      }
+      if (result?.success === false || !Number.isFinite(result?.currentTime)) throw new Error(result?.error || "视频播放器尚未就绪");
+      return {success:true,currentTime:result.currentTime};
+    })().then(sendResponse).catch(error => sendResponse({success:false,error:error.message}));
+    return true;
+  }
+
   if (message.action === "relayToContent") {
     debugLog("[Caption Harbor BG] Relay request:", message.payload?.action);
     (async () => {

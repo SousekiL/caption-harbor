@@ -8,6 +8,8 @@ async function setup(page) {
     const handlers = [];
     window.__store = db;
     window.__player = [];
+    window.__time = 0;
+    const storageListeners = [];
     const local = {
       get: async (keys) =>
         keys === null
@@ -18,12 +20,32 @@ async function setup(page) {
                 structuredClone(db[k]),
               ]),
             ),
-      set: async (data) => Object.assign(db, structuredClone(data)),
+      set: async (data) => {
+        Object.assign(db, structuredClone(data));
+        for (const fn of storageListeners)
+          fn(
+            Object.fromEntries(
+              Object.entries(data).map(([key, newValue]) => [
+                key,
+                { newValue },
+              ]),
+            ),
+            "local",
+          );
+      },
       remove: async (keys) =>
         (Array.isArray(keys) ? keys : [keys]).forEach((k) => delete db[k]),
     };
     window.chrome = {
-      storage: { local, session: local, onChanged: { addListener() {} } },
+      storage: {
+        local,
+        session: local,
+        onChanged: {
+          addListener(fn) {
+            storageListeners.push(fn);
+          },
+        },
+      },
       windows: { getCurrent: async () => ({ id: 1 }) },
       tabs: {
         query: async () => [
@@ -50,6 +72,10 @@ async function setup(page) {
         getURL: (s) => "https://harbor.test/" + s,
         onMessage: { addListener: (fn) => handlers.push(fn) },
         sendMessage: async (message) => {
+          if (message.action === "getPlaybackState") {
+            window.__lastPlayback = message;
+            return { success: true, currentTime: window.__time };
+          }
           if (message.action.startsWith("lens"))
             return window.lensHandle(message);
           if (message.action === "checkConfig")
@@ -211,6 +237,7 @@ test("imports subtitles without keys, exports VTT, and sends loop boundaries", a
   );
   await page.getByRole("button", { name: "单句循环", exact: true }).click();
   expect(await page.evaluate(() => __player.at(-1).command)).toBe("loop");
+  await page.locator(".lens-file-menu summary").click();
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "VTT", exact: true }).click();
   expect((await download).suggestedFilename()).toMatch(/\.vtt$/);
@@ -253,53 +280,93 @@ test("narrow panel is readable and produces a review screenshot", async ({
   });
 });
 
-test("subtitle appearance applies to both languages and resets", async ({
+test("settings-only fonts apply live in all caption modes with timestamps above", async ({
   page,
 }) => {
   await setup(page);
-  await page.locator(".harbor-reading summary").click();
-  for (const [id, family] of [
+  await expect(page.locator(".harbor-reading")).toHaveCount(0);
+  for (const [font, family] of [
     ["robotoSlab", "Harbor Roboto Slab"],
     ["lexend", "Harbor Lexend"],
   ]) {
-    await page.locator("#reading-font").selectOption(id);
-    const loaded = await page.evaluate(async (family) => {
-      const faces = await document.fonts.load(`16px "${family}"`);
-      return (
-        faces.length > 0 && faces.every((face) => face.status === "loaded")
-      );
-    }, family);
-    expect(loaded).toBe(true);
+    await page.evaluate(
+      (font) =>
+        chrome.storage.local.set({ harbor_reading: { font, size: 26 } }),
+      font,
+    );
+    expect(
+      await page.evaluate(
+        async (family) =>
+          (await document.fonts.load(`16px "${family}"`)).length > 0,
+        family,
+      ),
+    ).toBe(true);
     await expect(page.locator(".transcript-text").first()).toHaveCSS(
       "font-family",
       new RegExp(family),
     );
   }
-  await page.locator("#reading-font").selectOption("mono");
-  await page.locator("#reading-size").focus();
-  await page.keyboard.press("End");
-  await expect(page.locator(".transcript-text").first()).toHaveCSS(
-    "font-size",
-    "32px",
+  for (const mode of ["original", "zh", "bilingual"]) {
+    await page.evaluate(
+      (mode) =>
+        mode === "original"
+          ? renderTranscript()
+          : renderTranscriptModeRows(getActiveTranscriptSegments(), mode),
+      mode,
+    );
+    const geometry = await page
+      .locator(".transcript-entry")
+      .first()
+      .evaluate((row) => {
+        const time = row
+          .querySelector(".transcript-time")
+          .getBoundingClientRect();
+        const text = row
+          .querySelector(".transcript-text,.transcript-copy")
+          .getBoundingClientRect();
+        return {
+          above: time.bottom <= text.top,
+          aligned: Math.abs(time.left - text.left) < 1,
+        };
+      });
+    expect(geometry).toEqual({ above: true, aligned: true });
+    await expect(
+      page.locator(".transcript-text,.transcript-translation").first(),
+    ).toHaveCSS("font-size", "26px");
+  }
+});
+
+test("follow playback refreshes stale highlight and scrolls only the caption area", async ({
+  page,
+}) => {
+  await setup(page);
+  await page.evaluate(() => {
+    currentTranscript = Array.from({ length: 30 }, (_, i) => ({
+      start: i * 10,
+      duration: 10,
+      text: `Sentence ${i}. ` + "A readable caption with context. ".repeat(5),
+    }));
+    renderTranscript();
+    autoScrollEnabled = false;
+    highlightActiveEntry(0);
+    document.getElementById("contentArea").scrollTop = 0;
+    window.__time = 120;
+    document.getElementById("followPlaybackBtn").style.display = "block";
+  });
+  await page.locator("#followPlaybackBtn").click();
+  await expect(page.locator(".active-playback")).toHaveAttribute(
+    "data-seconds",
+    "120",
   );
-  await expect(page.locator(".transcript-text").first()).toHaveCSS(
-    "font-family",
-    /Menlo/,
+  await expect
+    .poll(() => page.locator("#contentArea").evaluate((el) => el.scrollTop))
+    .toBeGreaterThan(0);
+  expect(await page.evaluate(() => scrollY)).toBe(0);
+  expect(await page.evaluate(() => __lastPlayback.tabId)).toBe(1);
+  await page.evaluate(() => (window.__time = 180));
+  await expect(page.locator(".active-playback")).toHaveAttribute(
+    "data-seconds",
+    "180",
   );
-  await page.evaluate(() =>
-    renderTranscriptModeRows(getActiveTranscriptSegments(), "bilingual"),
-  );
-  await expect(page.locator(".transcript-original").first()).toHaveCSS(
-    "font-size",
-    "32px",
-  );
-  await expect(page.locator(".transcript-translation").first()).toHaveCSS(
-    "font-size",
-    "32px",
-  );
-  await page.locator("#reading-reset").click();
-  await expect(page.locator(".transcript-original").first()).toHaveCSS(
-    "font-size",
-    "13.5px",
-  );
+  await expect(page.locator("#followPlaybackBtn")).not.toBeVisible();
 });

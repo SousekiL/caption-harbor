@@ -7,11 +7,11 @@
       css: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
     },
     sans: {
-      label: "无衬线 · 清晰",
+      label: "Arial",
       css: 'Arial, "PingFang SC", "Microsoft YaHei", sans-serif',
     },
     serif: {
-      label: "衬线 · 书本",
+      label: "Georgia",
       css: 'Georgia, "Songti SC", "SimSun", serif',
     },
     robotoSlab: {
@@ -23,8 +23,8 @@
       css: '"Harbor Lexend", "PingFang SC", sans-serif',
     },
     mono: {
-      label: "等宽 · 代码",
-      css: '"SFMono-Regular", Menlo, Consolas, "PingFang SC", monospace',
+      label: "Menlo",
+      css: 'Menlo, Consolas, "PingFang SC", monospace',
     },
   };
   const defaults = { font: "system", size: 13.5 };
@@ -37,9 +37,35 @@
   });
   async function init() {
     const inPanel = !!document.getElementById("transcriptList");
-    const root = document.createElement(inPanel ? "details" : "section");
+    if (inPanel) {
+      const applyPanel = (value) => {
+        const pref = normalize(value);
+        document.documentElement.style.setProperty(
+          "--harbor-caption-font",
+          FONTS[pref.font].css,
+        );
+        document.documentElement.style.setProperty(
+          "--harbor-caption-size",
+          `${pref.size}px`,
+        );
+      };
+      let updated = false;
+      chrome.storage.onChanged.addListener((changes, area) => {
+        if (area === "local" && changes[KEY]) {
+          updated = true;
+          applyPanel(changes[KEY].newValue);
+        }
+      });
+      applyPanel(defaults);
+      try {
+        const stored = await chrome.storage.local.get(KEY);
+        if (!updated) applyPanel(stored[KEY]);
+      } catch {}
+      return;
+    }
+    const root = document.createElement("section");
     root.className = "harbor-reading";
-    root.innerHTML = `${inPanel ? "<summary>字幕外观</summary>" : "<h2>字幕外观</h2>"}
+    root.innerHTML = `<h2>字幕外观</h2>
       <div class="harbor-reading-controls">
         <label>字体<select id="reading-font" aria-label="字幕字体"></select></label>
         <label>字号 <output id="reading-size-label" for="reading-size"></output><input id="reading-size" aria-label="字幕字号" type="range" min="12" max="32" step="0.5"></label>
@@ -48,8 +74,7 @@
         <small>原文和译文同时生效，自动保存。Roboto Slab 和 Lexend 已内置；中文使用系统字体。</small>
         <span id="reading-status" role="status"></span>
       </div>`;
-    if (inPanel) document.getElementById("contentArea").before(root);
-    else (document.querySelector("main") || document.body).append(root);
+    (document.querySelector("main") || document.body).append(root);
     const font = root.querySelector("#reading-font");
     const size = root.querySelector("#reading-size");
     const label = root.querySelector("#reading-size-label");

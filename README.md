@@ -49,7 +49,7 @@ npm run package
 npm run test:browser
 ```
 
-The first browser test run needs `npx playwright install chromium`. The ZIP is written to `dist/caption-harbor-v2.0.4.zip` from a strict public-file allowlist. Tests cover subtitle parsing, transcription jobs, local collection, provider errors, request boundaries and browser interactions using controlled fixtures. Automated fixtures do not establish successful authentication or paid-provider operation on your account. Real Eudic, Supadata and DeepSeek calls require keys entered in Settings and a manual acceptance pass.
+The first browser test run needs `npx playwright install chromium`. The ZIP is written to `dist/caption-harbor-v2.0.5.zip` from a strict public-file allowlist. Tests cover subtitle parsing, transcription jobs, local collection, provider errors, request boundaries and browser interactions using controlled fixtures. Automated fixtures do not establish successful authentication or paid-provider operation on your account. Real Eudic, Supadata and DeepSeek calls require keys entered in Settings and a manual acceptance pass.
 
 See [中文说明](README.zh-CN.md), [privacy](PRIVACY.md), [security](SECURITY.md), and [MIT license](LICENSE).
 
@@ -65,7 +65,10 @@ Choose **本机环境变量（EUDIC_TOKEN）** in learning Settings, check the e
 BrowserOS: `python3 scripts/install-native-host.py --browser browseros`. BrowserOS neo: `--browser browseros-neo`. The installer auto-detects an existing profile (BrowserOS, Chrome, then BrowserOS neo). `--profile-dir` overrides detection.
 
 
-Subtitle appearance: select system, sans-serif, serif or monospace fonts and a 12–32 px size from the panel or Settings. Changes apply to original and translated captions and persist locally.
+Subtitle appearance: select system, sans-serif, serif or monospace fonts and a 12–32 px size in Settings. Changes apply to original and translated captions and persist locally.
 
 
 Roboto Slab 与 Lexend 已内置，无需安装系统字体或连接字体服务；中文回退到系统字体。字体来源和许可见 [fonts/README.md](fonts/README.md)。
+
+
+The sidebar uses timestamps above each caption, a compact playback toolbar, and a subtitle-file menu for import/copy/export. Appearance controls are only in Settings. Follow playback fetches the current time from the bound video tab, reconnects a missing player script when possible, and scrolls only the caption container.

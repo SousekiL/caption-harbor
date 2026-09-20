@@ -434,16 +434,15 @@ function setupEventListeners() {
   // Follow playback button — re-enables auto-scroll after user scrolled away
   document
     .getElementById("followPlaybackBtn")
-    ?.addEventListener("click", () => {
+    ?.addEventListener("click", async () => {
       autoScrollEnabled = true;
-      document.getElementById("followPlaybackBtn").style.display = "none";
-      // Jump straight back to the line currently being spoken. We scroll
-      // directly (not via playbackTrackingTick) because the tick skips
-      // entries that are already highlighted — and the current line almost
-      // always IS highlighted, which made this button appear to do nothing.
-      if (!scrollToActiveEntry()) {
-        playbackTrackingTick(); // No highlight yet — let a tick establish one
-      }
+      const button = document.getElementById("followPlaybackBtn");
+      button.disabled = true;
+      try {
+        const moved = await playbackTrackingTick(true);
+        button.style.display = moved ? "none" : "block";
+        if (!moved) autoScrollEnabled = false;
+      } finally { button.disabled = false; }
     });
 
   // Notes filter buttons
@@ -2301,20 +2300,23 @@ function stopPlaybackTracking() {
  * One tick of the playback tracker. Gets current video time from the
  * YouTube tab and highlights + scrolls to the matching transcript entry.
  */
-async function playbackTrackingTick() {
+let playbackTickInFlight = false;
+async function playbackTrackingTick(forceScroll = false) {
+  if (!youtubeTabId || !currentVideoId || !transcriptTabIsActive()) return false;
+  if (playbackTickInFlight && !forceScroll) return false;
+  const videoId = currentVideoId;
+  const tabId = youtubeTabId;
+  playbackTickInFlight = true;
   try {
-    const result = await chrome.runtime.sendMessage({
-      action: "relayToContent",
-      payload: { action: "getCurrentTime" },
-    });
-
-    if (!result.success || !result.response) return;
-
-    const currentTime = result.response.currentTime || 0;
-    highlightActiveEntry(currentTime);
+    const result = await chrome.runtime.sendMessage({ action: "getPlaybackState", tabId, videoId });
+    if (videoId !== currentVideoId || tabId !== youtubeTabId || !transcriptTabIsActive()) return false;
+    if (!result?.success || !Number.isFinite(result.currentTime)) throw new Error(result?.error || "无法读取视频播放位置，请刷新视频页面");
+    highlightActiveEntry(result.currentTime);
+    return forceScroll ? scrollToActiveEntry() : true;
   } catch (error) {
-    // Silently ignore — YouTube tab might be closed or navigated away
-  }
+    if (forceScroll && typeof lensStatus === "function") lensStatus(error.message);
+    return false;
+  } finally { playbackTickInFlight = false; }
 }
 
 /**
@@ -2331,7 +2333,9 @@ function scrollToActiveEntry() {
   if (!activeEntry) return false;
 
   lastAutoScrollTime = Date.now();
-  activeEntry.scrollIntoView({ behavior: "smooth", block: "center" });
+  const area = document.getElementById("contentArea");
+  const offset = activeEntry.getBoundingClientRect().top - area.getBoundingClientRect().top;
+  area.scrollTo({top: Math.max(0, area.scrollTop + offset - (area.clientHeight - Math.min(activeEntry.offsetHeight, area.clientHeight)) / 2), behavior: "instant"});
   return true;
 }
 
@@ -2351,10 +2355,10 @@ function highlightActiveEntry(currentSeconds) {
   // Find the entry whose time range contains the current playback time
   let activeEntry = null;
   entries.forEach((entry, index) => {
-    const entrySeconds = parseInt(entry.dataset.seconds);
+    const entrySeconds = Number(entry.dataset.seconds);
     const nextEntry = entries[index + 1];
     const nextSeconds = nextEntry
-      ? parseInt(nextEntry.dataset.seconds)
+      ? Number(nextEntry.dataset.seconds)
       : Infinity;
 
     if (currentSeconds >= entrySeconds && currentSeconds < nextSeconds) {
@@ -2374,7 +2378,7 @@ function highlightActiveEntry(currentSeconds) {
   // Only scroll if auto-scroll is enabled
   if (autoScrollEnabled) {
     lastAutoScrollTime = Date.now();
-    activeEntry.scrollIntoView({ behavior: "smooth", block: "center" });
+    scrollToActiveEntry();
   }
 }
 

@@ -40,7 +40,7 @@
 
 ## 验证
 
-运行 `npm ci`、`npm test`、`npm run check`、`npm run package` 和 `npm run test:browser`。浏览器测试首次需要 `npx playwright install chromium`。安装包在 `dist/caption-harbor-v2.0.4.zip`。
+运行 `npm ci`、`npm test`、`npm run check`、`npm run package` 和 `npm run test:browser`。浏览器测试首次需要 `npx playwright install chromium`。安装包在 `dist/caption-harbor-v2.0.5.zip`。
 
 自动化使用受控字幕、接口和浏览器测试数据；真实视频、账号授权与付费接口需要你填写 key 后进行验收，不应把模拟测试视为真实同步成功。
 
@@ -56,7 +56,10 @@ macOS 如果阻止写入 Chrome 配置目录，请在有相应文件访问权限
 BrowserOS 用户可运行 `python3 scripts/install-native-host.py --browser browseros`；BrowserOS neo 使用 `--browser browseros-neo`。双击安装器会优先识别已有的 BrowserOS 配置目录，其次是 Chrome、BrowserOS neo；也可通过 `--profile-dir` 指定目录。
 
 
-字幕外观：在侧栏展开“字幕外观”，或进入设置页，可选择系统默认、无衬线、衬线和等宽字体，以及 12–32 px 字号。原文和译文同步生效，自动保存，支持恢复默认。
+字幕外观：进入设置页的“字幕外观”，可选择系统默认、Arial、Georgia、Menlo、Roboto Slab 和 Lexend，以及 12–32 px 字号。原文和译文同步生效，自动保存，支持恢复默认。
 
 
 Roboto Slab 与 Lexend 已内置，无需安装系统字体或连接字体服务；中文回退到系统字体。字体来源和许可见 [fonts/README.md](fonts/README.md)。
+
+
+侧栏时间戳位于每段字幕上方；顶部保留播放操作，导入、复制和导出收在“字幕文件”菜单。字体外观仅在设置页调整。“跟随播放”重新读取绑定视频标签页的时间并滚动字幕区域；更新后如播放器连接断开，请刷新视频页面。

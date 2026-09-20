@@ -61,6 +61,35 @@ test("unpacked extension starts its real service worker and persists learning se
       "32px",
     );
     await expect(page.locator("#harbor-auto")).not.toBeChecked();
+    await context.route("https://www.youtube.com/watch?v=video123", (route) =>
+      route.fulfill({
+        contentType: "text/html",
+        body: '<video class="html5-main-video"></video>',
+      }),
+    );
+    const videoPage = await context.newPage();
+    await videoPage.goto("https://www.youtube.com/watch?v=video123");
+    await videoPage.evaluate(
+      () => (document.querySelector("video").currentTime = 42.5),
+    );
+    const playback = await page.evaluate(async () => {
+      const tabs = await chrome.tabs.query({
+        url: "https://www.youtube.com/watch?v=video123",
+      });
+      const valid = await chrome.runtime.sendMessage({
+        action: "getPlaybackState",
+        tabId: tabs[0].id,
+        videoId: "video123",
+      });
+      const wrong = await chrome.runtime.sendMessage({
+        action: "getPlaybackState",
+        tabId: tabs[0].id,
+        videoId: "other123",
+      });
+      return { valid, wrong };
+    });
+    expect(playback.valid).toEqual({ success: true, currentTime: 42.5 });
+    expect(playback.wrong.success).toBe(false);
     expect(errors).toEqual([]);
   } finally {
     await context.close();
