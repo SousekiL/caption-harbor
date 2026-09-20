@@ -65,7 +65,10 @@ def run(job, req):
     video=req['videoId'];folder=job.parent.parent
     if req['provider']=='captions':
         try:
-            command([tool('yt-dlp'),'--no-playlist','--no-progress','--retries','1','--socket-timeout','20','--skip-download','--write-subs','--write-auto-subs','--sub-langs','en,en-orig,zh-Hans,zh-Hant','--sub-format','json3','-o',str(job/'captions.%(ext)s'),'--','https://www.youtube.com/watch?v='+video],90)
+            # yt-dlp can download a preferred English track successfully and
+            # then exit non-zero when an optional translated track is rate
+            # limited. Inspect completed files regardless of that exit code.
+            subprocess.run([tool('yt-dlp'),'--no-playlist','--no-progress','--retries','1','--socket-timeout','20','--skip-download','--write-subs','--write-auto-subs','--sub-langs','en,en-orig,zh-Hans,zh-Hant','--sub-format','json3','-o',str(job/'captions.%(ext)s'),'--','https://www.youtube.com/watch?v='+video],stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,timeout=90)
             files=sorted(job.glob('captions.*.json3'),key=lambda p:('.en.' not in p.name,p.name))
             if files:
                 data=json.loads(files[0].read_text());content=[]

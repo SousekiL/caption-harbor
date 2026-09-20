@@ -5,6 +5,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
+import subprocess
 spec=importlib.util.spec_from_file_location('audio_worker',Path(__file__).resolve().parents[2]/'native/audio_worker.py')
 audio=importlib.util.module_from_spec(spec);spec.loader.exec_module(audio)
 class AudioTest(unittest.TestCase):
@@ -32,3 +33,20 @@ class AudioTest(unittest.TestCase):
                 audio.run(job,{'videoId':'video123','provider':'groq','groqModel':'whisper-large-v3-turbo','apiKey':'fixture-groq'})
             data=json.loads((job/'state.json').read_text());self.assertEqual(data['content'][0]['offset'],500)
             self.assertFalse(any(b'fixture-groq' in p.read_bytes() for p in job.iterdir()))
+
+    def test_uses_downloaded_english_captions_when_optional_tracks_fail(self):
+        with tempfile.TemporaryDirectory() as d:
+            job=Path(d)/'audio-jobs'/('b'*32);job.mkdir(parents=True)
+            captions={
+                'events':[
+                    {'tStartMs':0,'dDurationMs':1200,'segs':[{'utf8':'Existing English captions'}]},
+                ]
+            }
+            def partial_download(args,stdin,stdout,stderr,timeout):
+                (job/'captions.en.json3').write_text(json.dumps(captions))
+                return subprocess.CompletedProcess(args,1)
+            with patch.object(audio,'tool',return_value='yt-dlp'),patch.object(audio.subprocess,'run',side_effect=partial_download):
+                audio.run(job,{'videoId':'video123','provider':'captions','model':'small.en'})
+            state=json.loads((job/'state.json').read_text())
+            self.assertEqual(state['status'],'completed')
+            self.assertEqual(state['content'][0]['text'],'Existing English captions')

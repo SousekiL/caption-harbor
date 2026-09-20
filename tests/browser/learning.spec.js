@@ -518,3 +518,45 @@ test("a slower previous navigation cannot replace the current video's transcript
     "previous video",
   );
 });
+
+test("reload captions refreshes only the current video's transcript", async ({
+  page,
+}) => {
+  await setup(page);
+  await page.evaluate(async () => {
+    window.__videoFixtures.video123.transcript = [
+      "Fresh captions from the current video.",
+    ];
+    await chrome.storage.local.set({
+      lens_job_video123: { jobId: "paid-job-must-survive" },
+      lens_words: [{ id: "word-1", word: "learning", occurrences: [] }],
+    });
+  });
+
+  const reload = page.getByRole("button", {
+    name: "重新载入当前视频字幕",
+  });
+  await expect(reload).toBeVisible();
+  await reload.click();
+
+  await expect(page.locator("#transcriptList")).toContainText(
+    "Fresh captions from the current video.",
+  );
+  await expect(page.locator("#transcriptList")).not.toContainText(
+    "Reinforced learning",
+  );
+  const retained = await page.evaluate(async () => {
+    const stored = await chrome.storage.local.get([
+      "lens_job_video123",
+      "lens_words",
+    ]);
+    return {
+      jobId: stored.lens_job_video123?.jobId,
+      word: stored.lens_words?.[0]?.word,
+    };
+  });
+  expect(retained).toEqual({
+    jobId: "paid-job-must-survive",
+    word: "learning",
+  });
+});

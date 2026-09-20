@@ -239,9 +239,16 @@ test("the header exposes one universal language control for all result tabs", ()
   const js = read("sidepanel.js");
   assert.match(html, /id="transcriptModeControl"[\s\S]*aria-label="Content language"/);
   assert.match(html, /id="transcriptModeControl"[\s\S]*id="tabsNav"/);
-  assert.match(html, /data-transcript-mode="original"[\s\S]*?>Original</);
-  assert.match(html, /data-transcript-mode="zh"[\s\S]*?>\u4e2d\u6587</);
-  assert.match(html, /data-transcript-mode="bilingual"[\s\S]*?>\u53cc\u8bed</);
+  assert.match(html, /data-transcript-mode="original"[\s\S]*?>\s*Original\s*</);
+  assert.match(html, /data-transcript-mode="zh"[\s\S]*?>\s*\u4e2d\u6587\s*</);
+  assert.match(
+    html,
+    /data-transcript-mode="bilingual"[\s\S]*?>\s*\u53cc\u8bed\s*</,
+  );
+  assert.match(
+    html,
+    /id="refreshTranscriptBtn"[\s\S]*aria-label="Reload current video captions"/,
+  );
   assert.match(js, /handleDisplayLanguageModeChange\(button\.dataset\.transcriptMode\)/);
   assert.match(js, /contentType: "transcriptBatch"/);
   assert.match(js, /contentType: "interfaceBatch"/);

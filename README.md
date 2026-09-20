@@ -30,6 +30,14 @@ This project is installed locally from GitHub, not through the Chrome Web Store.
 | Playback following | Transcript highlighting and scrolling | Bound-video playback reads; video seeks keep following, while manual caption scrolling pauses it |
 | Settings | Provider keys and options-page language controls | Two sections, Subtitles & AI and Learning settings; one interface-language choice also applies to the side panel |
 
+## New in 2.1.3
+
+- Add a compact reload-captions button beside Settings in the video side panel.
+- Reloading removes only the current video's rebuildable transcript cache and retries caption retrieval.
+- Notes, vocabulary, and active Supadata / Groq / local Whisper jobs are preserved, preventing duplicate paid or local work.
+- Failed Groq/local audio jobs are removed from resumable state so the next attempt can check YouTube captions again.
+- The local helper now uses successfully downloaded English captions even if a later optional translated track is rate-limited.
+
 ## New in 2.1.2
 
 - Prevent a slower result from the previous YouTube video from replacing the current video's title or transcript after single-page navigation.

@@ -67,6 +67,10 @@ function harness(
     ctx,
   );
   vm.runInContext(
+    fs.readFileSync(require.resolve("../audio-transcription"), "utf8"),
+    ctx,
+  );
+  vm.runInContext(
     fs.readFileSync(require.resolve("../lens-background"), "utf8"),
     ctx,
   );
@@ -267,4 +271,24 @@ test("selected local provider is used when browser captions are unavailable", as
   const result = await h.run("lensFetchTranscript", "video123");
   assert.equal(result.provider, "local");
   assert.equal(h.requests.length, 0);
+});
+
+test("a failed Groq task is removed so caption detection can retry", async () => {
+  const key = "harbor_audio_video123_groq";
+  const h = harness(
+    { [key]: { jobId: "failed-job", provider: "groq" } },
+    undefined,
+    async (_name, message) => {
+      assert.equal(message.action, "audioPoll");
+      return { success: true, status: "failed", error: "Groq failed" };
+    },
+  );
+  await assert.rejects(
+    h.context.harborAlternativeTranscript("video123", {
+      transcriptionProvider: "groq",
+      groqApiKey: "fixture",
+    }),
+    /Groq failed/,
+  );
+  assert.equal(h.db[key], undefined);
 });

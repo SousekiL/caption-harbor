@@ -19,15 +19,29 @@
           <div class="video-channel" id="videoChannel"></div>
         </div>
         <div class="header-actions">
-          <button
-            class="settings-btn"
-            id="settingsBtn"
-            type="button"
-            title="Open Caption Harbor settings"
-            aria-label="Open Caption Harbor settings"
-          >
-            设置
-          </button>
+          <div class="header-utility-actions">
+            <button
+              class="settings-btn"
+              id="settingsBtn"
+              type="button"
+              title="Open Caption Harbor settings"
+              aria-label="Open Caption Harbor settings"
+            >
+              设置
+            </button>
+            <button
+              class="settings-btn refresh-transcript-btn"
+              id="refreshTranscriptBtn"
+              type="button"
+              title="Reload current video captions"
+              aria-label="Reload current video captions"
+            >
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M15.7 6.2A6.5 6.5 0 1 0 16.5 10"></path>
+                <path d="M15.8 2.8v3.8H12"></path>
+              </svg>
+            </button>
+          </div>
           <div
             class="transcript-mode-control global-language-control"
             id="transcriptModeControl"
@@ -40,19 +54,25 @@
               type="button"
               data-transcript-mode="original"
               aria-pressed="true"
-            >Original</button>
+            >
+              Original
+            </button>
             <button
               class="transcript-mode-btn"
               type="button"
               data-transcript-mode="zh"
               aria-pressed="false"
-            >中文</button>
+            >
+              中文
+            </button>
             <button
               class="transcript-mode-btn"
               type="button"
               data-transcript-mode="bilingual"
               aria-pressed="false"
-            >双语</button>
+            >
+              双语
+            </button>
             <span
               class="translation-spinner"
               id="langSpinner"
@@ -272,6 +292,6 @@
     <script src="player-connection.js"></script>
     <script src="sidepanel.js"></script>
     <script src="lens-panel.js"></script>
-  <script src="reading-settings.js"></script>
+    <script src="reading-settings.js"></script>
   </body>
 </html>

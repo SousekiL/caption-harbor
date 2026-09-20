@@ -48,8 +48,12 @@ async function harborAlternativeTranscript(videoId, config) {
     await chrome.storage.local.set({ [key]: { jobId, provider } });
   }
   const state = await harborAudioNative({ action: "audioPoll", jobId });
-  if (state.status === "failed")
+  if (state.status === "failed") {
+    // A terminal failure is not resumable. Keeping its job ID would make all
+    // later attempts skip YouTube caption detection and replay the same error.
+    await chrome.storage.local.remove(key);
     throw new Error(state.error || "音频任务失败，请检查设置后重试。");
+  }
   if (state.status !== "completed")
     return {
       success: false,

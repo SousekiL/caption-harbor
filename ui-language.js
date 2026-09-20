@@ -199,6 +199,7 @@ var HarborUI = (() => {
   };
   Object.assign(pairs, {
     "Open Caption Harbor settings": "打开 Caption Harbor 设置",
+    "Reload current video captions": "重新载入当前视频字幕",
     "Navigate to a YouTube video and click the extension icon to get an AI-powered digest.":
       "打开 YouTube 视频，点击插件图标开始学习。",
     "Extracting captions from video...": "正在读取视频字幕…",

@@ -401,6 +401,47 @@ chrome.tabs.onActivated.addListener(async ({ tabId, windowId }) => {
   }
 });
 
+let transcriptReloadInFlight = false;
+
+async function reloadCurrentVideoTranscript() {
+  if (transcriptReloadInFlight || !currentVideoId) return;
+
+  const videoId = currentVideoId;
+  const button = document.getElementById("refreshTranscriptBtn");
+  transcriptReloadInFlight = true;
+  button.disabled = true;
+  button.setAttribute("aria-busy", "true");
+
+  try {
+    const captionKey = `harbor_caption_${videoId}`;
+    const captionState = (await chrome.storage.local.get(captionKey))[
+      captionKey
+    ];
+    const removable = [`digest_${videoId}`];
+
+    // Preserve active caption, Supadata, Groq, and local Whisper jobs. A
+    // manual reload resumes existing paid/computing work instead of creating
+    // a duplicate task. A cached "unavailable" result is safe to retry.
+    if (!captionState?.jobId) removable.push(captionKey);
+    await chrome.storage.local.remove(removable);
+
+    currentAnalysis = null;
+    currentTranscript = null;
+    currentTranscriptText = null;
+    currentTranscriptTimestamped = null;
+    currentTranscriptLanguage = null;
+    showState("loading");
+    updateLoading("Fetching transcript", "");
+    await checkCurrentTab();
+  } catch (error) {
+    showError("No transcript found", error.message);
+  } finally {
+    transcriptReloadInFlight = false;
+    button.disabled = false;
+    button.removeAttribute("aria-busy");
+  }
+}
+
 function setupEventListeners() {
   // Tab switching
   document.querySelectorAll(".tab").forEach((tab) => {
@@ -421,6 +462,10 @@ function setupEventListeners() {
   document.getElementById("settingsBtn")?.addEventListener("click", () => {
     chrome.runtime.sendMessage({ action: "openOptions" });
   });
+
+  document
+    .getElementById("refreshTranscriptBtn")
+    ?.addEventListener("click", reloadCurrentVideoTranscript);
 
   // Transcript actions
   document
