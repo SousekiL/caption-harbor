@@ -172,11 +172,13 @@ function groupTranscriptEntries(entries, limits = TRANSCRIPT_SEGMENT_LIMITS) {
   entries.forEach((entry, entryIndex) => {
     const text = normalizeCaptionText(entry?.text);
     if (!text) return;
-    const start = Number.isFinite(Number(entry.start)) ? Number(entry.start) : 0;
+    const start = Number.isFinite(Number(entry.start))
+      ? Number(entry.start)
+      : 0;
     const duration = Math.max(0, Number(entry.duration) || 0);
-    const sentenceParts =
-      text.match(/[^.!?;:,。！？；：，]+(?:[.!?;:,。！？；：，]+["')\]”’）】」』]*|$)/g) ||
-      [text];
+    const sentenceParts = text.match(
+      /[^.!?;:,。！？；：，]+(?:[.!?;:,。！？；：，]+["')\]”’）】」』]*|$)/g,
+    ) || [text];
     let consumedChars = 0;
 
     sentenceParts.forEach((sentencePart) => {
@@ -184,7 +186,9 @@ function groupTranscriptEntries(entries, limits = TRANSCRIPT_SEGMENT_LIMITS) {
       if (!cleanPart) return;
       const oversizedParts = splitOversizedThought(cleanPart, limits.maxChars);
       oversizedParts.forEach((part, partIndex) => {
-        const ratio = text.length ? Math.min(1, consumedChars / text.length) : 0;
+        const ratio = text.length
+          ? Math.min(1, consumedChars / text.length)
+          : 0;
         pieces.push({
           text: part,
           start: start + duration * ratio,
@@ -313,6 +317,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 let navigationRefreshTimer = null;
 let panelWindowId = null;
+let navigationGeneration = 0;
 chrome.windows.getCurrent().then((w) => {
   panelWindowId = w.id;
 });
@@ -322,9 +327,14 @@ function scheduleDigestRefresh() {
   // description before we read them. Also collapses rapid-fire URL events
   // into a single refresh.
   clearTimeout(navigationRefreshTimer);
+  const generation = ++navigationGeneration;
   navigationRefreshTimer = setTimeout(() => {
-    checkCurrentTab();
+    void checkCurrentTab(generation);
   }, 600);
+}
+
+function navigationIsCurrent(generation) {
+  return generation === navigationGeneration;
 }
 
 function panelIsShowingResults() {
@@ -441,8 +451,9 @@ function setupEventListeners() {
       try {
         const moved = await playbackTrackingTick(true);
         button.style.display = moved ? "none" : "block";
-
-      } finally { button.disabled = false; }
+      } finally {
+        button.disabled = false;
+      }
     });
 
   // Notes filter buttons
@@ -469,7 +480,13 @@ function setNotesFilter(showAll) {
 // VIDEO DETECTION
 // ============================================================
 
-async function checkCurrentTab() {
+async function checkCurrentTab(expectedGeneration) {
+  const generation =
+    expectedGeneration === undefined
+      ? ++navigationGeneration
+      : expectedGeneration;
+  if (!navigationIsCurrent(generation)) return;
+
   try {
     // The panel belongs only to the active tab. Looking for another open
     // YouTube tab here can keep an old transcript visible on a non-YouTube
@@ -478,6 +495,7 @@ async function checkCurrentTab() {
       active: true,
       lastFocusedWindow: true,
     });
+    if (!navigationIsCurrent(generation)) return;
     const tab = tabs[0] || null;
 
     debugLog("[Caption Harbor Panel] Found tab:", tab?.id, tab?.url);
@@ -492,13 +510,13 @@ async function checkCurrentTab() {
       return;
     }
 
-    // Store the tab ID for reliable messaging later
-    youtubeTabId = tab.id;
-
     const videoId = extractVideoId(tab.url);
 
     if (videoId) {
-      currentVideoUrl = tab.url;
+      let nextVideoTitle = "";
+      let nextChannelName = "";
+      let nextVideoDescription = "";
+      let nextVideoDuration = 0;
 
       try {
         // Route through background script for reliable message passing
@@ -508,20 +526,24 @@ async function checkCurrentTab() {
         });
         debugLog("[Caption Harbor Panel] getVideoInfo result:", result);
         if (result.success && result.response) {
-          currentVideoTitle = result.response.title || "";
-          currentChannelName = result.response.channelName || "";
-          currentVideoDescription = result.response.description || "";
-          currentVideoDuration = result.response.duration || 0;
+          nextVideoTitle = result.response.title || "";
+          nextChannelName = result.response.channelName || "";
+          nextVideoDescription = result.response.description || "";
+          nextVideoDuration = result.response.duration || 0;
         }
       } catch (e) {
         console.error("[Caption Harbor Panel] getVideoInfo error:", e);
-        currentVideoTitle = "";
-        currentChannelName = "";
-        currentVideoDescription = "";
-        currentVideoDuration = 0;
       }
 
-      startDigest(videoId, tab.url);
+      if (!navigationIsCurrent(generation)) return;
+      youtubeTabId = tab.id;
+      currentVideoUrl = tab.url;
+      currentVideoTitle = nextVideoTitle;
+      currentChannelName = nextChannelName;
+      currentVideoDescription = nextVideoDescription;
+      currentVideoDuration = nextVideoDuration;
+
+      await startDigest(videoId, tab.url, generation);
     } else {
       showState("welcome");
     }
@@ -560,7 +582,12 @@ function extractVideoId(url) {
 // DIGEST PIPELINE
 // ============================================================
 
-async function startDigest(videoId, videoUrl) {
+async function startDigest(
+  videoId,
+  videoUrl,
+  generation = navigationGeneration,
+) {
+  if (!navigationIsCurrent(generation)) return;
   if (typeof lensOnVideoChange === "function") lensOnVideoChange(videoId);
   // Check if we already have this video loaded in memory
   if (videoId === currentVideoId && currentAnalysis) {
@@ -579,9 +606,11 @@ async function startDigest(videoId, videoUrl) {
     resetTranscriptSearch();
     lastTranscriptScrollTop = 0;
     pendingTranscriptViewState = await loadTranscriptViewState(videoId);
+    if (!navigationIsCurrent(generation)) return;
     // An unseen video always starts in Original, so opening it never spends
     // translation tokens. A saved choice is restored only for this video.
     currentTranscriptMode = await loadDisplayLanguageMode(videoId);
+    if (!navigationIsCurrent(generation)) return;
     document
       .getElementById("contentArea")
       ?.classList.toggle(
@@ -593,7 +622,7 @@ async function startDigest(videoId, videoUrl) {
   // Check cache for this video
   currentVideoId = videoId;
   const cached = await loadFromCache(videoId);
-  if (currentVideoId !== videoId) return;
+  if (!navigationIsCurrent(generation) || currentVideoId !== videoId) return;
   if (cached) {
     debugLog("Loading from cache:", videoId);
     currentVideoId = videoId;
@@ -669,17 +698,26 @@ async function startDigest(videoId, videoUrl) {
   try {
     do {
       transcriptResult = await lensFetchTranscript(videoId);
-      if (currentVideoId !== videoId) return;
+      if (!navigationIsCurrent(generation) || currentVideoId !== videoId)
+        return;
       // An imported transcript takes precedence over a result arriving later.
       if (currentTranscript?.length) return;
       if (transcriptResult.pending) {
         updateLoading("音频转录中", transcriptResult.message);
-        await new Promise(resolve => setTimeout(resolve, 5000));
-        if (currentVideoId !== videoId || currentTranscript?.length) return;
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+        if (
+          !navigationIsCurrent(generation) ||
+          currentVideoId !== videoId ||
+          currentTranscript?.length
+        )
+          return;
       }
     } while (transcriptResult.pending);
-  } catch (error) { transcriptResult = {success:false,error:error.message}; }
+  } catch (error) {
+    transcriptResult = { success: false, error: error.message };
+  }
 
+  if (!navigationIsCurrent(generation) || currentVideoId !== videoId) return;
 
   if (!transcriptResult.success) {
     if (transcriptResult.error === "NO_SUPADATA_KEY") {
@@ -715,6 +753,7 @@ async function startDigest(videoId, videoUrl) {
   if (currentTranscriptMode !== "original") translateTranscript();
 
   // Save transcript to cache (without analysis)
+  if (!navigationIsCurrent(generation) || currentVideoId !== videoId) return;
   await saveToCache(videoId);
 
   // DON'T run LLM analysis automatically - wait for user to click Overview tab
@@ -771,11 +810,7 @@ async function translateInterfaceSegments(surface, segments, rerender) {
     .filter((segment) => segment.text)
     .map((segment) => ({
       ...segment,
-      cacheKey: interfaceTranslationCacheKey(
-        surface,
-        segment.id,
-        segment.text,
-      ),
+      cacheKey: interfaceTranslationCacheKey(surface, segment.id, segment.text),
     }))
     .filter(
       (segment) =>
@@ -785,7 +820,9 @@ async function translateInterfaceSegments(surface, segments, rerender) {
     );
   if (!missing.length) return;
 
-  missing.forEach((segment) => interfaceTranslationInFlight.add(segment.cacheKey));
+  missing.forEach((segment) =>
+    interfaceTranslationInFlight.add(segment.cacheKey),
+  );
   setTranslatingSpinner(true);
   try {
     for (
@@ -838,7 +875,9 @@ async function translateInterfaceSegments(surface, segments, rerender) {
       interfaceTranslationFailures.add(segment.cacheKey),
     );
   } finally {
-    missing.forEach((segment) => interfaceTranslationInFlight.delete(segment.cacheKey));
+    missing.forEach((segment) =>
+      interfaceTranslationInFlight.delete(segment.cacheKey),
+    );
     setTranslatingSpinner(false);
   }
 }
@@ -857,7 +896,8 @@ function getOverviewTranslationSegments() {
   [...(currentAnalysis.keyQuotes || [])]
     .sort((a, b) => (a.timestampSeconds || 0) - (b.timestampSeconds || 0))
     .forEach((quote, index) => {
-      if (quote.quote) segments.push({ id: `quote-${index}`, text: quote.quote });
+      if (quote.quote)
+        segments.push({ id: `quote-${index}`, text: quote.quote });
     });
   return segments;
 }
@@ -979,10 +1019,7 @@ function renderAnalysisResults(analysis) {
     quotesList.appendChild(div);
   });
 
-  if (
-    currentTranscriptMode !== "original" &&
-    resultTabIsActive("overview")
-  ) {
+  if (currentTranscriptMode !== "original" && resultTabIsActive("overview")) {
     void translateOverviewContent();
   }
 }
@@ -1015,7 +1052,10 @@ async function saveQuoteAsNote(quote, btn) {
       // Refresh notes list if on Notes tab
       loadNotes(currentVideoId);
     } else {
-      console.error("[Caption Harbor] Save quote as note failed:", result.error);
+      console.error(
+        "[Caption Harbor] Save quote as note failed:",
+        result.error,
+      );
       btn.textContent = "Error";
       setTimeout(() => {
         btn.textContent = originalText;
@@ -1236,7 +1276,10 @@ function revealCurrentTranscriptSearchMatch({ scroll = true } = {}) {
  * source subtitles, Chinese searches translated text, and Bilingual searches
  * both columns. Translated rows call this again as their text arrives.
  */
-function refreshTranscriptSearch({ preserveIndex = false, scroll = true } = {}) {
+function refreshTranscriptSearch({
+  preserveIndex = false,
+  scroll = true,
+} = {}) {
   const input = document.getElementById("transcriptSearchInput");
   const clearButton = document.getElementById("transcriptSearchClearBtn");
   const query = String(input?.value || "").trim();
@@ -1259,19 +1302,15 @@ function refreshTranscriptSearch({ preserveIndex = false, scroll = true } = {}) 
       if (!content) return;
 
       const textNodes = [];
-      const walker = document.createTreeWalker(
-        content,
-        NodeFilter.SHOW_TEXT,
-        {
-          acceptNode(node) {
-            const parent = node.parentElement;
-            if (!node.nodeValue || parent?.closest("button")) {
-              return NodeFilter.FILTER_REJECT;
-            }
-            return NodeFilter.FILTER_ACCEPT;
-          },
+      const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT, {
+        acceptNode(node) {
+          const parent = node.parentElement;
+          if (!node.nodeValue || parent?.closest("button")) {
+            return NodeFilter.FILTER_REJECT;
+          }
+          return NodeFilter.FILTER_ACCEPT;
         },
-      );
+      });
       while (walker.nextNode()) textNodes.push(walker.currentNode);
       textNodes.forEach((node) => {
         transcriptSearchMatches.push(...markTranscriptTextNode(node, query));
@@ -1354,7 +1393,10 @@ function getDisplayedTranscriptText() {
 }
 
 function copyTranscript() {
-  copyToClipboardWithFeedback(getDisplayedTranscriptText(), "copyTranscriptBtn");
+  copyToClipboardWithFeedback(
+    getDisplayedTranscriptText(),
+    "copyTranscriptBtn",
+  );
 }
 
 function exportTranscript() {
@@ -1414,7 +1456,8 @@ function showState(state) {
 
 function updateLoading(title, subtitle) {
   document.getElementById("loadingText").textContent = HarborUI.text(title);
-  document.getElementById("loadingSubtext").textContent = HarborUI.text(subtitle);
+  document.getElementById("loadingSubtext").textContent =
+    HarborUI.text(subtitle);
 }
 
 function showError(title, message) {
@@ -1493,10 +1536,7 @@ function switchTab(tabName) {
     } else if (currentAnalysis && currentTranscriptMode !== "original") {
       void translateOverviewContent();
     }
-  } else if (
-    tabName === "notes" &&
-    currentTranscriptMode !== "original"
-  ) {
+  } else if (tabName === "notes" && currentTranscriptMode !== "original") {
     void translateNotesContent();
   } else if (
     tabName === "transcript" &&
@@ -1750,11 +1790,19 @@ function setupExplainFeature() {
 
   let selectedText = "";
   let selectedTimestamp = 0;
-  for (const [selector, action] of [[".lens-word-btn", () => lensExplain("word")], [".lens-concept-btn", () => lensExplain("concept")], [".lens-collect-btn", lensCollect]]) {
+  for (const [selector, action] of [
+    [".lens-word-btn", () => lensExplain("word")],
+    [".lens-concept-btn", () => lensExplain("concept")],
+    [".lens-collect-btn", lensCollect],
+  ]) {
     tooltip.querySelector(selector).addEventListener("click", async () => {
       lensCaptureSelection(selectedText, selectedTimestamp);
       tooltip.style.display = "none";
-      try { await action(); } catch (error) { lensStatus(error.message); }
+      try {
+        await action();
+      } catch (error) {
+        lensStatus(error.message);
+      }
     });
   }
 
@@ -1783,8 +1831,8 @@ function setupExplainFeature() {
       // supplies the timestamp when the selection spans more than one row.
       const isInTranscript = Boolean(
         range &&
-          transcriptList.contains(range.startContainer) &&
-          transcriptList.contains(range.endContainer),
+        transcriptList.contains(range.startContainer) &&
+        transcriptList.contains(range.endContainer),
       );
 
       // Allow any selection length.
@@ -1806,9 +1854,16 @@ function setupExplainFeature() {
         tooltip.style.left = `${rect.left + rect.width / 2}px`;
         tooltip.style.display = "flex";
         const bounds = tooltip.getBoundingClientRect();
-        const center = Math.max(bounds.width / 2 + 10, Math.min(innerWidth - bounds.width / 2 - 10, rect.left + rect.width / 2));
+        const center = Math.max(
+          bounds.width / 2 + 10,
+          Math.min(
+            innerWidth - bounds.width / 2 - 10,
+            rect.left + rect.width / 2,
+          ),
+        );
         tooltip.style.left = `${center}px`;
-        if (bounds.bottom > innerHeight - 10) tooltip.style.top = `${Math.max(10, rect.top - bounds.height - 8)}px`;
+        if (bounds.bottom > innerHeight - 10)
+          tooltip.style.top = `${Math.max(10, rect.top - bounds.height - 8)}px`;
       } else {
         tooltip.style.display = "none";
       }
@@ -2257,8 +2312,9 @@ function startPlaybackTracking() {
   // Don't restart if already tracking (preserves user's auto-scroll state)
   if (autoScrollInterval) return;
 
-  document.getElementById("followPlaybackBtn").style.display =
-    autoScrollEnabled ? "none" : "block";
+  document.getElementById("followPlaybackBtn").style.display = autoScrollEnabled
+    ? "none"
+    : "block";
 
   // Poll video time every 500ms
   autoScrollInterval = setInterval(() => playbackTrackingTick(), 500);
@@ -2267,8 +2323,12 @@ function startPlaybackTracking() {
   const contentArea = document.getElementById("contentArea");
   contentArea.removeEventListener("scroll", onContentAreaScroll);
   contentArea.addEventListener("scroll", onContentAreaScroll);
-  contentArea.addEventListener("wheel", onTranscriptScrollGesture, {passive:true});
-  contentArea.addEventListener("touchmove", onTranscriptScrollGesture, {passive:true});
+  contentArea.addEventListener("wheel", onTranscriptScrollGesture, {
+    passive: true,
+  });
+  contentArea.addEventListener("touchmove", onTranscriptScrollGesture, {
+    passive: true,
+  });
   contentArea.addEventListener("keydown", onTranscriptScrollGesture);
   contentArea.addEventListener("pointerdown", onTranscriptScrollGesture);
 }
@@ -2300,25 +2360,39 @@ function stopPlaybackTracking() {
  */
 let playbackTickInFlight = false;
 async function playbackTrackingTick(forceScroll = false) {
-  if (!youtubeTabId || !currentVideoId || !transcriptTabIsActive()) return false;
+  if (!youtubeTabId || !currentVideoId || !transcriptTabIsActive())
+    return false;
   if (playbackTickInFlight && !forceScroll) return false;
   const videoId = currentVideoId;
   const tabId = youtubeTabId;
   playbackTickInFlight = true;
   try {
     const result = await readBoundPlayerState(tabId, videoId);
-    if (videoId !== currentVideoId || tabId !== youtubeTabId || !transcriptTabIsActive()) return false;
-    if (!result?.success || !Number.isFinite(result.currentTime)) throw new Error(result?.error || "无法读取视频播放位置，请刷新视频页面");
-    if (document.getElementById("lens-status")?.dataset.playbackError === "true") {
+    if (
+      videoId !== currentVideoId ||
+      tabId !== youtubeTabId ||
+      !transcriptTabIsActive()
+    )
+      return false;
+    if (!result?.success || !Number.isFinite(result.currentTime))
+      throw new Error(result?.error || "无法读取视频播放位置，请刷新视频页面");
+    if (
+      document.getElementById("lens-status")?.dataset.playbackError === "true"
+    ) {
       document.getElementById("lens-status").textContent = "";
       delete document.getElementById("lens-status").dataset.playbackError;
     }
     highlightActiveEntry(result.currentTime);
     return forceScroll ? scrollToActiveEntry() : true;
   } catch (error) {
-    if (forceScroll && typeof lensStatus === "function") { lensStatus(error.message); document.getElementById("lens-status").dataset.playbackError = "true"; }
+    if (forceScroll && typeof lensStatus === "function") {
+      lensStatus(error.message);
+      document.getElementById("lens-status").dataset.playbackError = "true";
+    }
     return false;
-  } finally { playbackTickInFlight = false; }
+  } finally {
+    playbackTickInFlight = false;
+  }
 }
 
 /**
@@ -2336,8 +2410,19 @@ function scrollToActiveEntry() {
 
   lastAutoScrollTime = Date.now();
   const area = document.getElementById("contentArea");
-  const offset = activeEntry.getBoundingClientRect().top - area.getBoundingClientRect().top;
-  area.scrollTo({top: Math.max(0, area.scrollTop + offset - (area.clientHeight - Math.min(activeEntry.offsetHeight, area.clientHeight)) / 2), behavior: "instant"});
+  const offset =
+    activeEntry.getBoundingClientRect().top - area.getBoundingClientRect().top;
+  area.scrollTo({
+    top: Math.max(
+      0,
+      area.scrollTop +
+        offset -
+        (area.clientHeight -
+          Math.min(activeEntry.offsetHeight, area.clientHeight)) /
+          2,
+    ),
+    behavior: "instant",
+  });
   return true;
 }
 
@@ -2395,10 +2480,30 @@ function onContentAreaScroll() {
 }
 
 function onTranscriptScrollGesture(event) {
-  if (!autoScrollEnabled || !autoScrollInterval || !transcriptTabIsActive()) return;
-  if (event.target.closest?.("input,textarea,select,button,summary,[contenteditable='true']")) return;
+  if (!autoScrollEnabled || !autoScrollInterval || !transcriptTabIsActive())
+    return;
+  if (
+    event.target.closest?.(
+      "input,textarea,select,button,summary,[contenteditable='true']",
+    )
+  )
+    return;
   if (event.type === "keydown") {
-    if (event.altKey || event.ctrlKey || event.metaKey || !["ArrowUp","ArrowDown","PageUp","PageDown","Home","End"," "].includes(event.key)) return;
+    if (
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      ![
+        "ArrowUp",
+        "ArrowDown",
+        "PageUp",
+        "PageDown",
+        "Home",
+        "End",
+        " ",
+      ].includes(event.key)
+    )
+      return;
   }
   if (event.type === "pointerdown") {
     const area = document.getElementById("contentArea");
@@ -2626,7 +2731,8 @@ async function handleDisplayLanguageModeChange(mode) {
   if (mode === "original") {
     renderTranscript();
     if (currentAnalysis) renderAnalysisResults(currentAnalysis);
-    if (currentNotes.length) renderNotes(currentNotes, currentNotesFilterVideoId);
+    if (currentNotes.length)
+      renderNotes(currentNotes, currentNotesFilterVideoId);
     return;
   }
 
@@ -2821,7 +2927,11 @@ async function requestTranscriptTranslationBatch(
       updateTranslatedRow(
         segment,
         indices[batchIndex],
-        { id: segment.id, text: "", error: error.message || "Translation failed." },
+        {
+          id: segment.id,
+          text: "",
+          error: error.message || "Translation failed.",
+        },
         generation,
       );
     });
@@ -2867,7 +2977,11 @@ async function translateTranscript() {
   let processing = false;
 
   const processNext = async () => {
-    if (processing || queue.length === 0 || generation !== translationGeneration)
+    if (
+      processing ||
+      queue.length === 0 ||
+      generation !== translationGeneration
+    )
       return;
     processing = true;
     const indices = queue.splice(0, TRANSLATION_BATCH_SIZE);
@@ -2919,7 +3033,8 @@ async function translateTranscript() {
   );
 
   rows.forEach((row, index) => {
-    if (!row.classList.contains("translated")) transcriptScrollObserver.observe(row);
+    if (!row.classList.contains("translated"))
+      transcriptScrollObserver.observe(row);
     if (index < TRANSLATION_BATCH_SIZE) enqueue(index);
   });
 }

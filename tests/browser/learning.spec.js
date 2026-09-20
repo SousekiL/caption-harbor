@@ -9,6 +9,23 @@ async function setup(page) {
     window.__store = db;
     window.__player = [];
     window.__time = 0;
+    window.__currentTab = {
+      id: 1,
+      url: "https://www.youtube.com/watch?v=video123",
+      windowId: 1,
+      active: true,
+    };
+    window.__videoFixtures = {
+      video123: {
+        title: "Learning, one sentence at a time",
+        channelName: "Caption Harbor",
+        transcript: [
+          "Reinforced learning helps us understand diminishing returns.",
+          "Practice with a specific example to understand the concept.",
+        ],
+      },
+    };
+    const tabUpdatedListeners = [];
     const storageListeners = [];
     const local = {
       get: async (keys) =>
@@ -48,18 +65,13 @@ async function setup(page) {
       },
       windows: { getCurrent: async () => ({ id: 1 }) },
       tabs: {
-        get: async (id) => ({
-          id,
-          url: "https://www.youtube.com/watch?v=video123",
-        }),
-        query: async () => [
-          {
-            id: 1,
-            url: "https://www.youtube.com/watch?v=video123",
-            windowId: 1,
+        get: async () => ({ ...window.__currentTab }),
+        query: async () => [{ ...window.__currentTab }],
+        onUpdated: {
+          addListener(listener) {
+            tabUpdatedListeners.push(listener);
           },
-        ],
-        onUpdated: { addListener() {} },
+        },
         onActivated: { addListener() {} },
         sendMessage: async (id, payload) => {
           window.__player.push(payload);
@@ -86,45 +98,63 @@ async function setup(page) {
             return window.lensHandle(message);
           if (message.action === "checkConfig")
             return { hasSupadataKey: false, hasAiKey: false };
-          if (message.action === "fetchTranscript")
+          if (message.action === "fetchTranscript") {
+            const fixture = window.__videoFixtures[message.videoId];
+            if (fixture?.transcriptDelay)
+              await new Promise((resolve) =>
+                setTimeout(resolve, fixture.transcriptDelay),
+              );
+            const transcript = (fixture?.transcript || []).map(
+              (text, index) => ({
+                start: index * 4,
+                duration: 4,
+                text,
+              }),
+            );
             return {
               success: true,
-              transcript: [
-                {
-                  start: 0,
-                  duration: 4,
-                  text: "Reinforced learning helps us understand diminishing returns.",
-                },
-                {
-                  start: 4,
-                  duration: 4,
-                  text: "Practice with a specific example to understand the concept.",
-                },
-              ],
-              transcriptText:
-                "Reinforced learning helps us understand diminishing returns. Practice with a specific example to understand the concept.",
-              transcriptTextTimestamped:
-                "[00:00:00] Reinforced learning helps us understand diminishing returns.\n[00:00:04] Practice with a specific example.",
+              transcript,
+              transcriptText: transcript.map((item) => item.text).join(" "),
+              transcriptTextTimestamped: transcript
+                .map((item) => `[00:00:0${item.start}] ${item.text}`)
+                .join("\n"),
               language: "en",
             };
+          }
           if (message.action === "getNotes")
             return { success: true, notes: [] };
-          if (message.action === "relayToContent")
+          if (message.action === "relayToContent") {
+            const videoId = new URL(window.__currentTab.url).searchParams.get(
+              "v",
+            );
+            const fixture = window.__videoFixtures[videoId];
+            if (fixture?.metadataDelay)
+              await new Promise((resolve) =>
+                setTimeout(resolve, fixture.metadataDelay),
+              );
             return {
               success: true,
               response: {
-                title: "Learning, one sentence at a time",
-                channelName: "Caption Harbor",
+                title: fixture?.title || videoId,
+                channelName: fixture?.channelName || "Caption Harbor",
                 duration: 8,
                 currentTime: 0,
               },
             };
+          }
           return { success: true };
         },
       },
     };
     window.getSettings = async () => ({ supadataApiKey: "fixture" });
     window.parseLooseJson = JSON.parse;
+    window.__navigateVideo = (videoId) => {
+      const url = `https://www.youtube.com/watch?v=${videoId}`;
+      window.__currentTab = { ...window.__currentTab, url };
+      for (const listener of tabUpdatedListeners) {
+        listener(window.__currentTab.id, { url }, { ...window.__currentTab });
+      }
+    };
     window.requestAiCompletion = async ({ messages }) => {
       const system = messages[0].content;
       if (system.includes("questions"))
@@ -454,4 +484,37 @@ test("panel buttons switch to English without translating video captions", async
   expect(text).not.toMatch(/[\u4e00-\u9fff]/);
   await page.locator('[data-tab="transcript"]').click();
   await expect(page.locator("#transcriptList")).toContainText("Reinforced");
+});
+
+test("a slower previous navigation cannot replace the current video's transcript", async ({
+  page,
+}) => {
+  await setup(page);
+  await page.evaluate(() => {
+    window.__videoFixtures.videoA12 = {
+      title: "Video A",
+      channelName: "Channel A",
+      transcript: ["This transcript belongs to the previous video."],
+      metadataDelay: 1500,
+    };
+    window.__videoFixtures.videoB34 = {
+      title: "Video B",
+      channelName: "Channel B",
+      transcript: ["This transcript belongs to the current video."],
+    };
+    window.__navigateVideo("videoA12");
+  });
+  await page.waitForTimeout(700);
+  await page.evaluate(() => window.__navigateVideo("videoB34"));
+
+  await expect(page.locator("#videoTitle")).toHaveText("Video B", {
+    timeout: 4000,
+  });
+  await expect(page.locator("#transcriptList")).toContainText("current video");
+  await page.waitForTimeout(1000);
+  await expect(page.locator("#videoTitle")).toHaveText("Video B");
+  await expect(page.locator("#transcriptList")).toContainText("current video");
+  await expect(page.locator("#transcriptList")).not.toContainText(
+    "previous video",
+  );
 });

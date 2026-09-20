@@ -30,6 +30,11 @@ This project is installed locally from GitHub, not through the Chrome Web Store.
 | Playback following | Transcript highlighting and scrolling | Bound-video playback reads; video seeks keep following, while manual caption scrolling pauses it |
 | Settings | Provider keys and options-page language controls | Two sections, Subtitles & AI and Learning settings; one interface-language choice also applies to the side panel |
 
+## New in 2.1.2
+
+- Prevent a slower result from the previous YouTube video from replacing the current video's title or transcript after single-page navigation.
+- Navigation metadata, cache and transcript writes now share one generation guard, so stale asynchronous work is discarded at every boundary.
+
 ## New in 2.1.1
 
 - Extension icons and the on-video Digest / Note buttons use `#3D755D`.

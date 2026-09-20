@@ -102,7 +102,7 @@ test("the transcript follows by default and only restores an explicitly paused v
   );
   assert.match(
     source,
-    /autoScrollEnabled \? "none" : "block"/,
+    /style\.display = autoScrollEnabled\s*\? "none"\s*: "block"/,
   );
   assert.match(
     source,
