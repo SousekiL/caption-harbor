@@ -56,3 +56,26 @@ test("long transcript retrieval stays bounded and includes relevant late materia
   assert.match(ctx.text, /gradient descent/);
   assert.equal(core.selectContext(entries.slice(0, 2), "hi").partial, false);
 });
+test("YouTube JSON3 keeps word-level timing offsets", () => {
+  const content = core.youtubeJson3ToContent({
+    events: [
+      {
+        tStartMs: 1000,
+        dDurationMs: 2200,
+        segs: [
+          { utf8: "Existing" },
+          { utf8: " English", tOffsetMs: 700 },
+          { utf8: " captions.", tOffsetMs: 1500 },
+        ],
+      },
+    ],
+  });
+  assert.deepEqual(
+    content.map(({ offset, duration, text }) => ({ offset, duration, text })),
+    [
+      { offset: 1000, duration: 700, text: "Existing" },
+      { offset: 1700, duration: 800, text: "English" },
+      { offset: 2500, duration: 700, text: "captions." },
+    ],
+  );
+});

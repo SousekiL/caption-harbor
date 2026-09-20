@@ -122,21 +122,43 @@ if (document.readyState === "loading") {
  * When they send key moments, we highlight them on the progress bar.
  */
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  debugLog("[Caption Harbor Content] Received message:", message.action, message);
+  debugLog(
+    "[Caption Harbor Content] Received message:",
+    message.action,
+    message,
+  );
 
   if (message.action === "lensPlayer") {
     const video = document.querySelector("video.html5-main-video");
     const videoId = new URL(location.href).searchParams.get("v");
-    if (!video || videoId !== message.videoId) { sendResponse({success:false,error:"视频已切换"}); return false; }
-    if (message.command === "toggle") { if (video.paused) video.play().catch(()=>{}); else video.pause(); }
-    else if (message.command === "previous") { harborLoop = null; video.currentTime = Math.max(0, Number(message.start) || 0); video.play().catch(()=>{}); }
-    else if (message.command === "loop") {
-      if (harborLoop) harborLoop = null;
-      else if (Number.isFinite(message.start) && Number.isFinite(message.end) && message.end > message.start) {
-        harborLoop = {start:message.start,end:message.end,videoId}; video.currentTime=message.start; video.play().catch(()=>{});
-      } else { sendResponse({success:false,error:"请先加载字幕"}); return false; }
+    if (!video || videoId !== message.videoId) {
+      sendResponse({ success: false, error: "视频已切换" });
+      return false;
     }
-    sendResponse({success:true,loop:!!harborLoop}); return false;
+    if (message.command === "toggle") {
+      if (video.paused) video.play().catch(() => {});
+      else video.pause();
+    } else if (message.command === "previous") {
+      harborLoop = null;
+      video.currentTime = Math.max(0, Number(message.start) || 0);
+      video.play().catch(() => {});
+    } else if (message.command === "loop") {
+      if (harborLoop) harborLoop = null;
+      else if (
+        Number.isFinite(message.start) &&
+        Number.isFinite(message.end) &&
+        message.end > message.start
+      ) {
+        harborLoop = { start: message.start, end: message.end, videoId };
+        video.currentTime = message.start;
+        video.play().catch(() => {});
+      } else {
+        sendResponse({ success: false, error: "请先加载字幕" });
+        return false;
+      }
+    }
+    sendResponse({ success: true, loop: !!harborLoop });
+    return false;
   }
   if (message.action === "getVideoInfo") {
     // Read video title and channel name from the page
@@ -156,14 +178,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const video = document.querySelector("video.html5-main-video");
     const videoId = new URL(location.href).searchParams.get("v");
     if (!video || (message.videoId && message.videoId !== videoId)) {
-      sendResponse({success:false,error:"视频播放器尚未就绪或已切换"}); return false;
+      sendResponse({ success: false, error: "视频播放器尚未就绪或已切换" });
+      return false;
     }
-    sendResponse({success:true,currentTime:video.currentTime,paused:video.paused});
+    sendResponse({
+      success: true,
+      currentTime: video.currentTime,
+      paused: video.paused,
+    });
     return false;
   }
 
   if (message.action === "seekTo") {
     // Jump the video to a specific timestamp
+    const videoId = new URLSearchParams(window.location.search).get("v");
+    if (message.videoId && message.videoId !== videoId) {
+      sendResponse({ success: false, error: "Video changed" });
+      return false;
+    }
     debugLog("[Caption Harbor Content] Seeking to:", message.seconds);
     seekToTimestamp(message.seconds);
     sendResponse({ success: true });
@@ -325,7 +357,9 @@ function injectDigestButton() {
 
   const actionsContainer = findDigestButtonHost();
   if (!actionsContainer) {
-    debugLog("[Caption Harbor Content] Visible actions container not found yet");
+    debugLog(
+      "[Caption Harbor Content] Visible actions container not found yet",
+    );
     return false;
   }
 
@@ -854,10 +888,21 @@ document.addEventListener("yt-navigate-finish", () => {
 
 // Loop against media time, with automatic reset on YouTube SPA navigation.
 let harborLoop = null;
-document.addEventListener("yt-navigate-start", () => { harborLoop = null; });
+document.addEventListener("yt-navigate-start", () => {
+  harborLoop = null;
+});
 setInterval(() => {
   if (!harborLoop) return;
-  if (new URL(location.href).searchParams.get("v") !== harborLoop.videoId) { harborLoop=null; return; }
-  const video=document.querySelector("video.html5-main-video");
-  if (video && !video.paused && (video.currentTime >= harborLoop.end || video.currentTime < harborLoop.start - .5)) video.currentTime=harborLoop.start;
+  if (new URL(location.href).searchParams.get("v") !== harborLoop.videoId) {
+    harborLoop = null;
+    return;
+  }
+  const video = document.querySelector("video.html5-main-video");
+  if (
+    video &&
+    !video.paused &&
+    (video.currentTime >= harborLoop.end ||
+      video.currentTime < harborLoop.start - 0.5)
+  )
+    video.currentTime = harborLoop.start;
 }, 100);

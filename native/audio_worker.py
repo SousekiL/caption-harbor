@@ -73,8 +73,21 @@ def run(job, req):
             if files:
                 data=json.loads(files[0].read_text());content=[]
                 for event in data.get('events',[]):
-                    text=''.join(s.get('utf8','') for s in event.get('segs',[])).strip()
-                    if text and isinstance(event.get('tStartMs'),(int,float)):content.append({'offset':event['tStartMs'],'duration':event.get('dDurationMs',1000),'text':text})
+                    start=event.get('tStartMs')
+                    duration=event.get('dDurationMs',1000)
+                    if not isinstance(start,(int,float)):continue
+                    segments=event.get('segs',[])
+                    for index,segment in enumerate(segments):
+                        text=segment.get('utf8','').strip()
+                        if not text:continue
+                        relative=segment.get('tOffsetMs',0)
+                        if not isinstance(relative,(int,float)):relative=0
+                        next_relative=duration
+                        for following in segments[index+1:]:
+                            candidate=following.get('tOffsetMs')
+                            if isinstance(candidate,(int,float)):
+                                next_relative=candidate;break
+                        content.append({'offset':start+relative,'duration':max(1,next_relative-relative),'text':text})
                 if content and len(json.dumps(content).encode()) < 850000:
                     write_state(job,{'status':'completed','content':content});return
         except Exception:pass

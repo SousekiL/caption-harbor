@@ -74,18 +74,8 @@ async function readBrowserCaptions(videoId) {
           });
           if (!result.ok) continue;
           const data = await result.json();
-          const content = (data.events || [])
-            .map((e) => ({
-              text: (e.segs || [])
-                .map((s) => s.utf8 || "")
-                .join("")
-                .trim(),
-              offset: e.tStartMs,
-              duration: e.dDurationMs || 1000,
-            }))
-            .filter((e) => e.text && Number.isFinite(e.offset));
-          if (content.length)
-            return { success: true, content, lang: track.languageCode };
+          if ((data.events || []).some((event) => event.segs?.length))
+            return { success: true, json3: data, lang: track.languageCode };
         } catch {}
       }
       // The user-visible transcript is a second source when timed-text requests
@@ -158,5 +148,8 @@ async function readBrowserCaptions(videoId) {
   const current = await chrome.tabs.get(tab.id);
   if (new URL(current.url).searchParams.get("v") !== videoId)
     return { success: false };
-  return { ...LensCore.transcriptResult(data), source: "youtube" };
+  const normalized = data.json3
+    ? { ...data, content: LensCore.youtubeJson3ToContent(data.json3) }
+    : data;
+  return { ...LensCore.transcriptResult(normalized), source: "youtube" };
 }

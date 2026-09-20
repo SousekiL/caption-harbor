@@ -39,7 +39,15 @@ class AudioTest(unittest.TestCase):
             job=Path(d)/'audio-jobs'/('b'*32);job.mkdir(parents=True)
             captions={
                 'events':[
-                    {'tStartMs':0,'dDurationMs':1200,'segs':[{'utf8':'Existing English captions'}]},
+                    {
+                        'tStartMs':1000,
+                        'dDurationMs':2200,
+                        'segs':[
+                            {'utf8':'Existing'},
+                            {'utf8':' English','tOffsetMs':700},
+                            {'utf8':' captions.','tOffsetMs':1500},
+                        ],
+                    },
                 ]
             }
             def partial_download(args,stdin,stdout,stderr,timeout):
@@ -49,4 +57,7 @@ class AudioTest(unittest.TestCase):
                 audio.run(job,{'videoId':'video123','provider':'captions','model':'small.en'})
             state=json.loads((job/'state.json').read_text())
             self.assertEqual(state['status'],'completed')
-            self.assertEqual(state['content'][0]['text'],'Existing English captions')
+            self.assertEqual(
+                [(item['offset'],item['text']) for item in state['content']],
+                [(1000,'Existing'),(1700,'English'),(2500,'captions.')],
+            )

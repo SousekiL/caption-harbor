@@ -30,6 +30,13 @@ This project is installed locally from GitHub, not through the Chrome Web Store.
 | Playback following | Transcript highlighting and scrolling | Bound-video playback reads; video seeks keep following, while manual caption scrolling pauses it |
 | Settings | Provider keys and options-page language controls | Two sections, Subtitles & AI and Learning settings; one interface-language choice also applies to the side panel |
 
+## New in 2.1.4
+
+- Reduce playback-follow polling from 500ms to 250ms so caption highlighting reacts within 350ms of crossing a cue boundary.
+- Caption clicks now seek the panel's bound tab and video directly. If the content-script connection is missing after an extension reload, a validated scripting fallback updates that video's player instead of silently relaying to another YouTube tab.
+- Preserve YouTube JSON3 word-level `tOffsetMs` values in both browser and local-helper caption paths, replacing character-ratio guesses for sentence timing.
+- Caption timestamps and exported subtitle timing remain unchanged.
+
 ## New in 2.1.3
 
 - Add a compact reload-captions button beside Settings in the video side panel.

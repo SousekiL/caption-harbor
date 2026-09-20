@@ -92,6 +92,34 @@ var LensCore = (() => {
       language: value.lang || null,
     };
   }
+  function youtubeJson3ToContent(data) {
+    const content = [];
+    for (const event of data?.events || []) {
+      const start = Number(event?.tStartMs);
+      const eventDuration = Number(event?.dDurationMs) || 1000;
+      if (!Number.isFinite(start)) continue;
+      const segments = Array.isArray(event?.segs) ? event.segs : [];
+      segments.forEach((segment, index) => {
+        const text = String(segment?.utf8 || "").trim();
+        if (!text) return;
+        const relative = Number.isFinite(Number(segment?.tOffsetMs))
+          ? Number(segment.tOffsetMs)
+          : 0;
+        const following = segments
+          .slice(index + 1)
+          .find((item) => Number.isFinite(Number(item?.tOffsetMs)));
+        const nextRelative = following
+          ? Number(following.tOffsetMs)
+          : eventDuration;
+        content.push({
+          offset: start + relative,
+          duration: Math.max(1, nextRelative - relative),
+          text,
+        });
+      });
+    }
+    return content;
+  }
   function selectContext(entries, query, limit = 48000) {
     const lines = entries.map(
       (e) => `[${time(e.start).slice(0, 8)}] ${e.text}`,
@@ -150,6 +178,7 @@ var LensCore = (() => {
     parseSubtitles,
     exportSubtitles,
     transcriptResult,
+    youtubeJson3ToContent,
     selectContext,
   };
 })();

@@ -98,6 +98,7 @@ function sendTranslationMessage(message) {
 let autoScrollEnabled = true; // True = scroll transcript to follow video playback
 let autoScrollInterval = null; // setInterval ID for polling video time
 let lastAutoScrollTime = 0; // Timestamp of last programmatic scroll (ignores scroll events within 1s)
+const PLAYBACK_POLL_INTERVAL_MS = 250;
 
 // --- Transcript reading position state ---
 // Session storage survives a side panel close but clears when Chrome closes.
@@ -1651,39 +1652,21 @@ async function triggerAnalysis() {
 
 async function seekTo(seconds) {
   debugLog("[Caption Harbor Panel] seekTo called with:", seconds);
-  if (seconds === undefined || seconds === null) {
+  if (
+    seconds === undefined ||
+    seconds === null ||
+    !youtubeTabId ||
+    !currentVideoId
+  ) {
     debugLog("[Caption Harbor Panel] seekTo aborted - no seconds value");
     return;
   }
 
-  const payload = {
-    action: "seekTo",
-    seconds: Number(seconds),
-  };
-
   try {
-    // Try direct messaging to the stored YouTube tab first (fastest/reliable)
-    if (youtubeTabId) {
-      try {
-        await chrome.tabs.sendMessage(youtubeTabId, payload);
-        debugLog("[Caption Harbor Panel] seekTo direct success");
-        return;
-      } catch (directErr) {
-        debugLog(
-          "[Caption Harbor Panel] Direct seekTo failed, falling back to relay:",
-          directErr.message,
-        );
-      }
-    }
-
-    // Fallback: route through background script
-    const result = await chrome.runtime.sendMessage({
-      action: "relayToContent",
-      payload,
-    });
-    debugLog("[Caption Harbor Panel] seekTo relay result:", result);
+    await seekBoundPlayer(youtubeTabId, currentVideoId, Number(seconds));
   } catch (error) {
     console.error("[Caption Harbor Panel] seekTo error:", error);
+    if (typeof lensStatus === "function") lensStatus(error.message);
   }
 }
 
@@ -2361,8 +2344,12 @@ function startPlaybackTracking() {
     ? "none"
     : "block";
 
-  // Poll video time every 500ms
-  autoScrollInterval = setInterval(() => playbackTrackingTick(), 500);
+  // A quarter-second poll keeps cue changes responsive without continuously
+  // querying the player or altering the caption timestamps themselves.
+  autoScrollInterval = setInterval(
+    () => playbackTrackingTick(),
+    PLAYBACK_POLL_INTERVAL_MS,
+  );
 
   // Listen for manual scrolls on the content area
   const contentArea = document.getElementById("contentArea");

@@ -9,6 +9,11 @@ async function setup(page) {
     window.__store = db;
     window.__player = [];
     window.__time = 0;
+    window.__playbackReads = 0;
+    window.__timeAfterNextRead = null;
+    window.__afterPlaybackRead = null;
+    window.__failSeekMessage = false;
+    window.__fallbackSeek = null;
     window.__currentTab = {
       id: 1,
       url: "https://www.youtube.com/watch?v=video123",
@@ -75,8 +80,27 @@ async function setup(page) {
         onActivated: { addListener() {} },
         sendMessage: async (id, payload) => {
           window.__player.push(payload);
-          if (payload.action === "getCurrentTime")
+          if (payload.action === "getCurrentTime") {
+            window.__playbackReads += 1;
             window.__lastPlayback = { tabId: id, videoId: payload.videoId };
+            const reportedTime = window.__time;
+            if (window.__timeAfterNextRead !== null) {
+              const nextTime = window.__timeAfterNextRead;
+              window.__timeAfterNextRead = null;
+              queueMicrotask(() => {
+                window.__time = nextTime;
+                window.__afterPlaybackRead?.();
+                window.__afterPlaybackRead = null;
+              });
+            }
+            return {
+              success: true,
+              currentTime: reportedTime,
+              paused: false,
+            };
+          }
+          if (payload.action === "seekTo" && window.__failSeekMessage)
+            throw new Error("Receiving end does not exist");
           return {
             success: true,
             currentTime: window.__time,
@@ -84,6 +108,27 @@ async function setup(page) {
           };
         },
         create: async () => ({}),
+      },
+      scripting: {
+        executeScript: async ({ args }) => {
+          if (args?.length === 2) {
+            window.__fallbackSeek = {
+              videoId: args[0],
+              seconds: args[1],
+            };
+            window.__time = args[1];
+            return [{ result: { success: true, currentTime: args[1] } }];
+          }
+          return [
+            {
+              result: {
+                success: true,
+                currentTime: window.__time,
+                paused: false,
+              },
+            },
+          ];
+        },
       },
       runtime: {
         id: "fixture",
@@ -466,6 +511,50 @@ test("video seeks stay in sync; only manual caption scrolling pauses follow", as
     "40",
   );
   await expect(page.locator("#followPlaybackBtn")).not.toBeVisible();
+});
+
+test("playback follow reacts within 350ms after a cue boundary", async ({
+  page,
+}) => {
+  await setup(page);
+  await page.evaluate(() => {
+    currentTranscript = [
+      { start: 0, duration: 4, text: "First sentence." },
+      { start: 4, duration: 4, text: "Next sentence." },
+    ];
+    renderTranscriptModeRows(
+      currentTranscript.map((entry, index) => ({
+        ...entry,
+        id: String(index),
+      })),
+      "bilingual",
+    );
+  });
+
+  await page.evaluate(
+    () =>
+      new Promise((resolve) => {
+        window.__timeAfterNextRead = 4.1;
+        window.__afterPlaybackRead = resolve;
+      }),
+  );
+  await page.waitForTimeout(350);
+  expect(
+    await page.locator(".active-playback").getAttribute("data-seconds"),
+  ).toBe("4");
+});
+
+test("clicking a caption seeks the bound video when page messaging is disconnected", async ({
+  page,
+}) => {
+  await setup(page);
+  await page.evaluate(() => {
+    window.__failSeekMessage = true;
+  });
+  await page.locator('.transcript-entry[data-seconds="4"]').click();
+  await expect
+    .poll(() => page.evaluate(() => window.__fallbackSeek))
+    .toEqual({ videoId: "video123", seconds: 4 });
 });
 
 test("panel buttons switch to English without translating video captions", async ({
