@@ -60,6 +60,8 @@ def main():
     env_file.chmod(0o600)
     shutil.copyfile(root/'native'/'host.py', folder/'host.py')
     (folder/'host.py').chmod(0o600)
+    shutil.copyfile(root/'native'/'audio_worker.py', folder/'audio_worker.py')
+    (folder/'audio_worker.py').chmod(0o600)
     (folder/'bridge.json').write_text(json.dumps({'env_file':str(env_file),'allowed_origins':origins},indent=2)+'\n')
     (folder/'bridge.json').chmod(0o600)
     launcher = folder/'launch-host'

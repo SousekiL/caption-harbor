@@ -5,8 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Caption Harbor Settings</title>
     <link rel="stylesheet" href="options.css" />
-  <link rel="stylesheet" href="lens.css">
-</head>
+    <link rel="stylesheet" href="lens.css" />
+    <link rel="stylesheet" href="settings-layout.css" />
+  </head>
   <body>
     <main class="settings-shell">
       <header>
@@ -36,87 +37,157 @@
             </button>
           </div>
         </div>
-        <h1 data-i18n="heading">Bring your own API keys</h1>
+        <h1>Settings</h1>
         <p class="lede" data-i18n="lede">
-          Keys stay in this Chrome profile and are sent only to the corresponding Supadata, DeepSeek, or Eudic service. This open-source extension has no developer server or
-          analytics.
+          Keys stay in this Chrome profile and are sent only to the
+          corresponding Supadata, DeepSeek, or Eudic service. This open-source
+          extension has no developer server or analytics.
         </p>
       </header>
 
-      <form id="settingsForm">
-        <section class="card">
-          <h2 data-i18n="transcriptProvider">Transcript provider</h2>
-          <label for="supadataApiKey" data-i18n="supadataApiKeyLabel"
-            >Supadata API key</label
-          >
-          <input
-            id="supadataApiKey"
-            name="supadataApiKey"
-            type="password"
-            autocomplete="off"
-            spellcheck="false"
-            placeholder="Paste your Supadata key"
-          />
-          <p class="help">
-            <span data-i18n="supadataHelp"
-              >Used to fetch timestamped YouTube subtitles.</span
+      <form id="settingsForm" class="service-module card">
+        <h2>Subtitles &amp; AI</h2>
+        <div class="services-grid">
+          <section class="service-block">
+            <h3>Transcript</h3>
+            <label class="checkbox-line" for="harbor-auto"
+              ><input id="harbor-auto" type="checkbox" /><span
+                >Automatically transcribe when captions are unavailable</span
+              ></label
             >
-            <a
-              href="https://dash.supadata.ai/auth/sign-up"
-              target="_blank"
-              rel="noreferrer"
-              data-i18n="supadataLink"
-              >Create a Supadata account and key</a
-            ><span data-i18n="supadataHelpSuffix"
-              >. Supadata generates the key during onboarding.</span
+            <p class="help">
+              Read existing captions first. Transcription starts only when
+              captions are unavailable.
+            </p>
+            <div id="transcriptionChoices">
+              <label for="transcriptionProvider">Transcription method</label>
+              <select id="transcriptionProvider">
+                <option value="supadata">Supadata</option>
+                <option value="groq">Groq</option>
+                <option value="local">Local Whisper</option>
+              </select>
+            </div>
+            <p id="supadataTranscriptionHint" class="help">
+              Supadata processes public video audio in the cloud and uses
+              additional credits.
+            </p>
+            <div id="groqConfiguration" hidden>
+              <label for="groqApiKey">Groq API key</label
+              ><input id="groqApiKey" type="password" autocomplete="off" />
+              <label for="groqModel">Groq model</label
+              ><select id="groqModel">
+                <option value="whisper-large-v3-turbo">
+                  Whisper Large v3 Turbo
+                </option>
+                <option value="whisper-large-v3">Whisper Large v3</option>
+              </select>
+              <p class="help">
+                Groq processes audio in the cloud and charges by usage.
+                Preparing video audio also requires the local helper.
+              </p>
+              <a
+                href="https://console.groq.com/keys"
+                target="_blank"
+                rel="noreferrer"
+                >Create a Groq key</a
+              >
+            </div>
+            <div id="localConfiguration" hidden>
+              <label for="localWhisperModel">Local model</label
+              ><select id="localWhisperModel">
+                <option value="base.en">Whisper Base.en</option>
+                <option value="small.en">Whisper Small.en</option>
+                <option value="small">Whisper Small</option>
+              </select>
+              <p class="help">
+                Runs on this Mac using CPU/GPU and memory. May increase heat and
+                battery use; no transcription API fee.
+              </p>
+            </div>
+            <div id="nativeAudioSetup" hidden>
+              <p class="help">
+                Install yt-dlp and FFmpeg for Groq; local transcription also
+                needs whisper.cpp and a downloaded model.
+              </p>
+              <button type="button" id="checkAudioSetup">
+                Check local components</button
+              ><span id="audioSetupStatus" role="status"></span>
+              <a href="LOCAL-SETUP.html" target="_blank"
+                >See local setup instructions</a
+              >
+            </div>
+            <div id="supadataConfiguration">
+              <label for="supadataApiKey" data-i18n="supadataApiKeyLabel"
+                >Supadata API key</label
+              >
+              <input
+                id="supadataApiKey"
+                name="supadataApiKey"
+                type="password"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="Paste your Supadata key"
+              />
+              <p class="help">
+                <span data-i18n="supadataHelp"
+                  >Used to fetch timestamped YouTube subtitles.</span
+                >
+                <a
+                  href="https://dash.supadata.ai/auth/sign-up"
+                  target="_blank"
+                  rel="noreferrer"
+                  data-i18n="supadataLink"
+                  >Create a Supadata account and key</a
+                ><span data-i18n="supadataHelpSuffix"
+                  >. Supadata generates the key during onboarding.</span
+                >
+              </p>
+            </div>
+          </section>
+          <section class="service-block">
+            <h3 data-i18n="aiProvider">AI provider</h3>
+            <div
+              class="provider-summary"
+              aria-label="Supported AI provider"
+              data-i18n-aria-label="providerSummaryLabel"
             >
-          </p>
-        </section>
+              <span class="provider-name">DeepSeek V4 Flash</span>
+              <span class="provider-badge" data-i18n="providerBadge"
+                >Supported in this version</span
+              >
+            </div>
 
-        <section class="card">
-          <h2 data-i18n="aiProvider">AI provider</h2>
-          <div
-            class="provider-summary"
-            aria-label="Supported AI provider"
-            data-i18n-aria-label="providerSummaryLabel"
-          >
-            <span class="provider-name">DeepSeek V4 Flash</span>
-            <span class="provider-badge" data-i18n="providerBadge"
-              >Supported in this version</span
+            <label for="aiApiKey" data-i18n="deepseekApiKeyLabel"
+              >DeepSeek API key</label
             >
-          </div>
-
-          <label for="aiApiKey" data-i18n="deepseekApiKeyLabel"
-            >DeepSeek API key</label
-          >
-          <input
-            id="aiApiKey"
-            name="aiApiKey"
-            type="password"
-            autocomplete="off"
-            spellcheck="false"
-            placeholder="Paste your DeepSeek key"
-          />
-          <p class="help">
-            <span data-i18n="deepseekHelp"
-              >Caption Harbor uses DeepSeek V4 Flash for overviews,
-              explanations, translation, and note polishing.</span
-            >
-            <a
-              href="https://platform.deepseek.com/api_keys"
-              target="_blank"
-              rel="noreferrer"
-              data-i18n="deepseekLink"
-              >Create a DeepSeek API key</a
-            ><span data-i18n="deepseekHelpSuffix">.</span>
-          </p>
-          <div class="privacy-note" data-i18n="privacyNote">
-            When you use AI features, DeepSeek receives the video transcript
-            and relevant video context. Review DeepSeek's terms and pricing
-            before saving.
-          </div>
-        </section>
-
+            <input
+              id="aiApiKey"
+              name="aiApiKey"
+              type="password"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="Paste your DeepSeek key"
+            />
+            <p class="help">
+              <span data-i18n="deepseekHelp"
+                >Caption Harbor uses DeepSeek V4 Flash for overviews,
+                explanations, translation, and note polishing.</span
+              >
+              <a
+                href="https://platform.deepseek.com/api_keys"
+                target="_blank"
+                rel="noreferrer"
+                data-i18n="deepseekLink"
+                >Create a DeepSeek API key</a
+              ><span data-i18n="deepseekHelpSuffix">.</span>
+            </p>
+            <div class="privacy-note" data-i18n="privacyNote">
+              When you use AI features, DeepSeek receives the video transcript
+              and relevant video context. Review DeepSeek's terms and pricing
+              before saving.
+            </div>
+          </section>
+        </div>
         <div class="form-actions">
           <button class="primary" type="submit" data-i18n="saveSettings">
             Save settings
@@ -125,6 +196,10 @@
         </div>
       </form>
 
+      <section id="learningModule" class="card learning-module">
+        <h2>Learning settings</h2>
+        <div id="learningContent"></div>
+      </section>
       <details class="card customization-card">
         <summary class="customization-summary">
           <span class="customization-summary-copy">
@@ -132,9 +207,7 @@
             <span class="customization-title" data-i18n="customizationTitle"
               >Want to use another AI model?</span
             >
-            <span
-              class="customization-purpose"
-              data-i18n="customizationPurpose"
+            <span class="customization-purpose" data-i18n="customizationPurpose"
               >Edit and copy a safe prompt for your coding agent</span
             >
           </span>
@@ -221,9 +294,12 @@
       </footer>
     </main>
 
+    <script src="ui-language.js"></script>
     <script src="settings.js"></script>
     <script src="options.js"></script>
-  <script src="lens-options.js"></script>
-<script src="reading-settings.js"></script>
+    <script src="audio-transcription.js"></script>
+    <script src="service-settings.js"></script>
+    <script src="lens-options.js"></script>
+    <script src="reading-settings.js"></script>
   </body>
 </html>

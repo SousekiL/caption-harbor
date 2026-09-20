@@ -1,0 +1,148 @@
+.settings-shell {
+  width: min(900px, calc(100% - 32px));
+  padding: 28px 0 40px;
+}
+.settings-shell header {
+  margin-bottom: 18px;
+}
+.settings-shell h1 {
+  font-size: 30px;
+}
+.settings-shell .lede {
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 8px 0;
+}
+.service-module,
+.learning-module {
+  padding: 20px;
+  margin: 16px 0;
+  box-shadow: none;
+}
+.services-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+.service-block {
+  min-width: 0;
+}
+.service-block h3 {
+  margin: 0 0 12px;
+  font-size: 15px;
+}
+.service-block label {
+  font-size: 13px;
+  margin: 10px 0 5px;
+}
+.service-block input:not([type="checkbox"]),
+.service-block select {
+  width: 100%;
+  font: inherit;
+  font-size: 13px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: white;
+  color: var(--text);
+}
+.service-block .checkbox-line {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+  line-height: 1.5;
+  cursor: pointer;
+}
+.service-block .checkbox-line input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  margin: 0;
+  flex: 0 0 16px;
+  accent-color: #246b69;
+}
+.service-block .help {
+  font-size: 12px;
+  line-height: 1.6;
+}
+.service-block a {
+  font-size: 12px;
+}
+.service-block .privacy-note {
+  font-size: 12px;
+  padding: 10px;
+  margin-top: 12px;
+}
+#nativeAudioSetup {
+  margin-top: 12px;
+  padding: 10px;
+  background: var(--bg);
+  border-radius: 8px;
+}
+#nativeAudioSetup a {
+  display: block;
+  margin-top: 8px;
+}
+#nativeAudioSetup button {
+  font-size: 12px;
+  padding: 6px 9px;
+}
+#learningContent {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  align-items: start;
+}
+#learningContent .lens-settings,
+#learningContent .harbor-reading {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  width: auto;
+  max-width: none;
+}
+#learningContent .lens-settings h3,
+#learningContent .harbor-reading h2 {
+  font-size: 15px;
+  padding: 0;
+  margin: 0 0 12px;
+}
+#learningContent .harbor-reading-controls {
+  padding: 0;
+}
+#learningContent .lens-settings p {
+  font-size: 12px;
+}
+#learningContent .lens-settings label {
+  font-size: 13px;
+}
+.settings-shell [hidden] {
+  display: none !important;
+}
+.provider-badge {
+  display: none;
+}
+.customization-card,
+.data-card {
+  padding: 16px;
+  box-shadow: none;
+}
+@media (max-width: 640px) {
+  .services-grid,
+  #learningContent {
+    grid-template-columns: 1fr;
+    gap: 22px;
+  }
+  .settings-shell {
+    width: calc(100% - 24px);
+    padding-top: 20px;
+  }
+}
+.learning-advanced {margin-top:20px;border-top:1px solid var(--border);padding-top:12px;font-size:13px;}
+.learning-advanced>summary {cursor:pointer;color:var(--muted);}
+.learning-advanced .card {border:0;padding:12px 0;margin:0;}
+.audio-task-controls {margin-top:14px;border-top:1px solid var(--border);padding-top:10px;font-size:12px;}
+.audio-task-controls summary {cursor:pointer;color:var(--muted);}
+.audio-task-controls input {padding:8px;font-size:13px;}

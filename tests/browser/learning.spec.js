@@ -4,7 +4,7 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "../..");
 async function setup(page) {
   await page.addInitScript(() => {
-    const db = {};
+    const db = { ytd_options_language: "zh-CN" };
     const handlers = [];
     window.__store = db;
     window.__player = [];
@@ -433,4 +433,22 @@ test("video seeks stay in sync; only manual caption scrolling pauses follow", as
     "40",
   );
   await expect(page.locator("#followPlaybackBtn")).not.toBeVisible();
+});
+
+test("panel buttons switch to English without translating video captions", async ({
+  page,
+}) => {
+  await setup(page);
+  await page.evaluate(() =>
+    chrome.storage.local.set({ ytd_options_language: "en" }),
+  );
+  await expect(page.locator('[data-tab="vocabulary"]')).toHaveText(
+    "Vocabulary",
+  );
+  await expect(page.locator("#settingsBtn")).toHaveText("Settings");
+  await page.locator('[data-tab="vocabulary"]').click();
+  const text = await page.locator("#contentArea").innerText();
+  expect(text).not.toMatch(/[\u4e00-\u9fff]/);
+  await page.locator('[data-tab="transcript"]').click();
+  await expect(page.locator("#transcriptList")).toContainText("Reinforced");
 });

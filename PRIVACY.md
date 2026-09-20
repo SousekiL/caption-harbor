@@ -22,4 +22,12 @@ Uninstalling the extension may remove local data. Clearing local words leaves Eu
 
 ## Optional environment bridge
 
-The `nativeMessaging` permission permits communication with `com.caption_harbor.environment`. In environment mode, the Eudic token comes from the native process environment or an owner-only `~/.config/caption-harbor/secrets.env` file. It is not persisted in Chrome storage. Only the background Eudic request uses it; settings receive a configured/not-configured status rather than the token. Selecting this mode clears a previous manually stored Eudic token when settings are saved. Supadata and DeepSeek settings are unchanged. The native helper has no network access of its own, executes no arbitrary commands, and accepts only the explicitly registered extension origin.
+The `nativeMessaging` permission permits communication with `com.caption_harbor.environment`. In environment mode, the Eudic token comes from the native process environment or an owner-only `~/.config/caption-harbor/secrets.env` file. It is not persisted in Chrome storage. Only the background Eudic request uses it; settings receive a configured/not-configured status rather than the token. Selecting this mode clears a previous manually stored Eudic token when settings are saved. Supadata and DeepSeek settings are unchanged. The helper accepts only the explicitly registered extension origin; fixed-purpose audio operations are described below.
+
+## Version 2.1 caption and audio providers
+
+The extension first reads captions available to the current YouTube page. It may open the page's built-in transcript view. If the local helper is installed, yt-dlp can retrieve captions or public video audio directly from YouTube. This does not send data to Supadata. No browser cookies are exported automatically.
+
+The native helper now supports fixed-purpose audio jobs in addition to Eudic credentials. With local Whisper, audio is processed on this computer. With Groq, the local worker sends audio chunks and the Groq key to `api.groq.com`; keys pass through process memory/stdin and are not persisted in job files. Supadata remains an optional cloud provider. AI interpretation and translation still use DeepSeek independently.
+
+Temporary audio, caption files and job status live under the private application directory. Old jobs are cleaned when a new job starts after 24 hours. Models are downloaded separately and retained for reuse. Interface-language preferences are stored locally and shared between Settings and the panel; they do not modify the selected caption-content language.

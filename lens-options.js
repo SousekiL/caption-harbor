@@ -2,9 +2,7 @@
 (async () => {
   const root = document.createElement("section");
   root.className = "lens-settings";
-  root.innerHTML = `<h2>Caption Harbor · 学习设置</h2>
-  <label><input id="harbor-auto" type="checkbox"> 没有字幕时自动转录音频</label>
-  <p>优先读取已有字幕；否则由 Supadata 转录公开视频音频。转录按视频分钟消耗额外额度（目前每分钟 2 credits），长视频可能等待数分钟。</p>
+  root.innerHTML = `<h3>Eudic</h3>
   <label>欧路授权来源 <select id="harbor-source"><option value="environment">本机环境变量（EUDIC_TOKEN）</option><option value="manual">手动填写</option></select></label>
   <p>本机模式通过已安装的本机桥接读取，不会把 Token 保存进浏览器。<span id="harbor-environment-status"></span></p>
   <button id="harbor-environment" type="button">检查本机环境配置</button>
@@ -14,17 +12,24 @@
   <label>默认生词本 <select id="harbor-category"><option value="0">默认生词本</option></select></label>
   <label>新生词本名称 <input id="harbor-new" placeholder="YouTube"></label><button id="harbor-create" type="button">新建生词本</button>
   <button id="harbor-save" type="button">保存学习设置</button>
-  <h3>转录任务</h3><p>超时不代表服务端取消。请先核对 Supadata 的任务和额度；重置后再次请求可能产生额外费用。</p>
+  <details id="audioTaskControls" class="audio-task-controls"><summary>转录任务</summary><p>超时不代表服务端取消。请先核对服务商任务与额度；重置后重新请求可能产生额外费用。</p>
   <label>需要重置的视频 ID <input id="harbor-video-id" placeholder="YouTube 链接 v= 后面的 ID"></label>
-  <button id="harbor-reset" type="button">重置该视频转录任务</button><p id="harbor-status" role="status"></p>`;
-  (document.querySelector("main") || document.body).append(root);
+  <button id="harbor-reset" type="button">重置该视频转录任务</button></details><p id="harbor-status" role="status"></p>`;
+  (
+    document.getElementById("learningContent") ||
+    document.querySelector("main") ||
+    document.body
+  ).append(root);
+  document
+    .querySelector("#settingsForm .form-actions")
+    .before(document.getElementById("audioTaskControls"));
   const $ = (id) => document.getElementById(`harbor-${id}`);
   const config = {
     autoTranscribe: true,
     categoryId: "0",
     ...(await chrome.storage.local.get("lens_settings")).lens_settings,
   };
-  $("auto").checked = config.autoTranscribe;
+
   $("token").value = config.eudicToken || "";
   $("source").value =
     config.credentialSource || (config.eudicToken ? "manual" : "environment");
@@ -41,7 +46,7 @@
   async function save() {
     await chrome.storage.local.set({
       lens_settings: {
-        autoTranscribe: $("auto").checked,
+        ...(await chrome.storage.local.get("lens_settings")).lens_settings,
         eudicToken:
           $("source").value === "manual" ? $("token").value.trim() : "",
         credentialSource: $("source").value,
@@ -112,8 +117,18 @@
   run("reset", async () => {
     const id = $("video-id").value.trim();
     YTD_SETTINGS.canonicalYouTubeUrl(id);
-    if (!confirm("确认已核对服务端任务？重置后重新请求可能再次收费。")) return;
-    await chrome.storage.local.remove(`lens_job_${id}`);
+    if (
+      !confirm(
+        HarborUI.text("确认已核对服务端任务？重置后重新请求可能再次收费。"),
+      )
+    )
+      return;
+    await chrome.storage.local.remove([
+      `lens_job_${id}`,
+      `harbor_caption_${id}`,
+      `harbor_audio_${id}_groq`,
+      `harbor_audio_${id}_local`,
+    ]);
     $("status").textContent = "任务已重置，重新打开视频即可重试";
   });
 })().catch(() => {});

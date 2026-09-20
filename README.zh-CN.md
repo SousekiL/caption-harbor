@@ -1,71 +1,46 @@
 # Caption Harbor
 
-字幕里的学习港湾。基于 [Zara Zhang 的 YouTube Digest](https://github.com/zarazhangrui/youtube-digest) 改造，保留原项目 MIT 许可与署名。
+基于 [Zara Zhang 的 YouTube Digest](https://github.com/zarazhangrui/youtube-digest) 改造，保留 MIT 许可和署名。
 
-## 已实现的学习流程
+## 2.1 版本
 
-打开 YouTube → 读取字幕或自动转录音频 → 划词解释、理解概念 → 收藏到欧路 → 从原句和视频时间点复习。
+设置分为「字幕与 AI」和「学习设置」。右上角的界面语言统一控制设置页和视频侧栏；原文、中文、双语等字幕内容选项独立保留。
 
-- 保留原项目的双语字幕、搜索、章节、引用和笔记。
-- 没有原生字幕时自动使用 Supadata 音频转录；设置中可关闭。异步任务保存在本机，重新打开侧栏继续查询。
-- 导入 SRT/VTT，不要求 API key；导出 SRT、VTT 和文本字幕。
-- 划选后直接收藏，或先查询词义和建议原形；原形可手动改写，短语保持完整。
-- 概念解释和例子；可保存为带时间点的概念笔记。
-- 连接欧路授权，读取、新建和选择生词本，发送单词及视频原句。收藏先保存本地，失败可手动重试。
-- 已收藏词在后续视频中高亮；点击查看历史原句和来源。
-- 上一句、暂停/播放、单句循环；侧栏快捷键 Alt+左箭头、Alt+空格、Alt+L（输入框内不触发）。
-- 视频问答及追问，回答可跳转到有效时间点；长视频按相关片段和分散抽样处理，并标明未覆盖全文。
-- 生成理解自测，答案默认折叠。
-- 学习记录保存播放位置、生词数、笔记数；生词导出 CSV/Markdown。
+- 已有字幕：先从 YouTube 当前页面读取，不要求 Supadata key；读取不到时，本机 yt-dlp 助手可补充获取。
+- 没有字幕：开启自动转录后，选择 Supadata、Groq 或本地 Whisper，再显示对应配置。
+- Supadata 是可选的云端备用服务。Groq 填写 API key，并需要本机组件准备视频音频；本地 Whisper 无转录接口费，但占用 CPU/GPU 和内存。
+- 保留双语阅读、字幕上方时间戳、搜索、字体和字号、单句循环、问答、自测、笔记、生词本与欧路同步。
+- 默认跟随视频跳转，只有手动滚动字幕才暂停跟随。
 
-## 安装和设置
+## 安装与设置
 
-1. 下载并解压安装包，或克隆仓库到长期保留的文件夹。
-2. 在 Chrome 打开 `chrome://extensions`，开启开发者模式，选择“加载已解压的扩展程序”，选中含 `manifest.json` 的文件夹。
-3. 在插件 Settings 中自行填写 Supadata key 和 DeepSeek key。
-4. 在“Caption Harbor · 学习设置”中填写[欧路授权](https://my.eudic.net/OpenAPI/Authorization)，连接并选择生词本，然后保存。
-5. 打开公开的 YouTube 视频，点击插件图标开始。
+在 BrowserOS 或 Chrome 打开 `chrome://extensions`，开启开发者模式并加载包含 `manifest.json` 的长期保留目录。更新后重新加载扩展并重新打开侧栏。
 
-升级后需重新加载扩展并刷新 YouTube；不要移动或删除安装文件夹。新学习功能的界面目前为中文。
+在「字幕与 AI」配置所选的转录方式及 DeepSeek key。只读字幕不需要 AI key，也不强制填写 Supadata key。「学习设置」保留欧路连接、生词本和字体外观。
 
-## 音频转录及同步说明
+本机组件安装（macOS，在插件目录中运行）：
 
-此版本默认开启自动转录，使用 Supadata 的 `mode=auto`：先查已有字幕，无字幕则由服务端转录音频，不是本机离线转录。已有字幕目前每次 1 credit，音频生成字幕目前每分钟 2 credits，实际以[服务商价格](https://supadata.ai/pricing)为准。长视频可能等待数分钟。未公开、要求登录或正在直播的视频不保证支持。
+```sh
+python3 scripts/setup-audio.py --model small.en
+python3 scripts/install-native-host.py --browser browseros
+```
 
-请求超时不代表服务端取消。插件会保留“不确定”状态，避免默默重复提交。请先核对服务商任务与额度，再在设置中输入视频 ID 重置该任务。
+只使用 Groq 时将 `--model small.en` 替换为 `--groq-only`。BrowserOS neo 使用 `--browser browseros-neo`，Chrome 使用 `--browser chrome`。安装器不指定浏览器时会识别已有配置目录；自定义安装可传 `--profile-dir` 和 `--extension-id`。
 
-欧路收到词条和原句；完整 AI 解释、多个视频出处及时间链接保存在插件本地。词组能否得到字典释义取决于欧路收录。删除本地记录不会删除欧路中的词；切换默认词本也不会自动搬迁已同步词条。失败记录由你点击重试，不会在关闭浏览器后自动同步。
+Base.en、Small.en 仅适用于英文，Small 为多语言模型。模型保存在 `~/.config/caption-harbor/models`，不进入仓库或安装包。选择本地 Whisper 后可点“检查本机组件”查看当前是否就绪。
 
-插件学习记录不跨设备同步，卸载前请导出生词。不要将 key 提交到 GitHub 或发送到聊天中。
+## 限制与费用
+
+YouTube 的页面变化、未加载的标签页或字幕访问限制可能导致直接读取失败，本机工具也不保证能获取每个视频。不伪造访问令牌，不自动导出浏览器账号 Cookie。
+
+本机音频任务支持公开可访问、最长四小时且源文件不超过 500 MB 的视频。Groq 每五分钟上传一段音频并合并时间戳；分段边界可能影响识别。本地 Whisper 在电脑上处理下载后的音频。关闭侧栏后任务可继续，重新打开会查询进度。临时任务在新任务开始时清理超过 24 小时的记录，最多保留十个近期任务。
+
+直接读取字幕和本地转录没有第三方转录费；Supadata、Groq、DeepSeek 分别按自身规则收费。Groq key 保存在浏览器的可信扩展存储，发送到本机任务进程的内存中，不写进音频任务文件。只有选择 Groq 时才向其上传音频。
+
+欧路仍支持手动 Token 或本机环境变量 `EUDIC_TOKEN`，私有环境文件为 `~/.config/caption-harbor/secrets.env`（0600 权限）。不要把密钥写进源代码。
 
 ## 验证
 
-运行 `npm ci`、`npm test`、`npm run check`、`npm run package` 和 `npm run test:browser`。浏览器测试首次需要 `npx playwright install chromium`。安装包在 `dist/caption-harbor-v2.0.7.zip`。
+运行 `npm test`、`npm run test:native`、`npm run test:browser`、`npm run check` 和 `npm run package`。浏览器测试首次需 `npx playwright install chromium`。
 
-自动化使用受控字幕、接口和浏览器测试数据；真实视频、账号授权与付费接口需要你填写 key 后进行验收，不应把模拟测试视为真实同步成功。
-
-## 从本机环境配置读取欧路 key（2.0.1）
-
-Chrome 插件无法直接读取系统环境变量，因此使用一个权限范围很小的本机桥接。它优先读取自身进程的 `EUDIC_TOKEN`；未设置时，从 `~/.config/caption-harbor/secrets.env` 加载这一变量。环境文件权限必须为 0600，只允许当前用户读写。它属于应用私有环境配置，不会修改系统全局环境或 shell 启动文件。
-
-在 Chrome 实际加载的扩展文件夹中双击 **Install environment.command**（macOS），或运行 `python3 scripts/install-native-host.py`（macOS/Linux）。在设置中选“本机环境变量（EUDIC_TOKEN）”，检查连接，再读取和选择生词本。key 只在发起欧路请求时经过内存，不存入浏览器、不进入源码和安装包。切换到本机模式并保存会清除之前保存在浏览器中的 Token。
-
-macOS 如果阻止写入 Chrome 配置目录，请在有相应文件访问权限的终端中运行安装器。扩展装在另一文件夹时，需要用其 `chrome://extensions` 页面显示的 ID 运行安装器的 `--extension-id` 参数。Windows 暂时使用手动填写模式。更新插件后需在扩展管理页重新加载，并接受新增的本机通信权限。
-
-
-BrowserOS 用户可运行 `python3 scripts/install-native-host.py --browser browseros`；BrowserOS neo 使用 `--browser browseros-neo`。双击安装器会优先识别已有的 BrowserOS 配置目录，其次是 Chrome、BrowserOS neo；也可通过 `--profile-dir` 指定目录。
-
-
-字幕外观：进入设置页的“字幕外观”，可选择系统默认、Arial、Georgia、Menlo、Roboto Slab 和 Lexend，以及 12–32 px 字号。原文和译文同步生效，自动保存，支持恢复默认。
-
-
-Roboto Slab 与 Lexend 已内置，无需安装系统字体或连接字体服务；中文回退到系统字体。字体来源和许可见 [fonts/README.md](fonts/README.md)。
-
-
-侧栏时间戳位于每段字幕上方；顶部保留播放操作，导入、复制和导出收在“字幕文件”菜单。字体外观仅在设置页调整。“跟随播放”重新读取绑定视频标签页的时间并滚动字幕区域；更新后如播放器连接断开，请刷新视频页面。
-
-
-默认持续跟随视频，点击视频进度条或自动布局滚动不会退出同步。只有在字幕区域使用滚轮、触摸滑动、滚动按键或拖动滚动条时才暂停跟随；切换插件标签页保留这个手动暂停状态，点击“跟随播放”恢复。重新打开插件或切换新视频默认跟随。
-
-
-播放位置改为由侧栏直接读取对应视频。页面消息返回为空或连接失效时，自动回退到读取该视频的媒体元素，并检查视频 ID，避免后台空响应造成无法跟随。
+已实测 macOS 本机字幕获取及短音频 Whisper 转录。Groq 的请求和结果处理采用受控接口响应测试，真实账号调用需要填写 Groq key 后验证。安装包为 `dist/caption-harbor-v2.1.0.zip`。

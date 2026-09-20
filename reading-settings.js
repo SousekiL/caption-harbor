@@ -74,7 +74,7 @@
         <small>原文和译文同时生效，自动保存。Roboto Slab 和 Lexend 已内置；中文使用系统字体。</small>
         <span id="reading-status" role="status"></span>
       </div>`;
-    (document.querySelector("main") || document.body).append(root);
+    (document.getElementById("learningContent") || document.querySelector("main") || document.body).append(root);
     const font = root.querySelector("#reading-font");
     const size = root.querySelector("#reading-size");
     const label = root.querySelector("#reading-size-label");

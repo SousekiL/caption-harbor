@@ -37,6 +37,9 @@ def read_token(env_file):
 
 def handle(message, config):
     action = message.get('action') if isinstance(message, dict) else None
+    if action in ('audioStatus', 'audioStart', 'audioPoll'):
+        import audio_worker
+        return audio_worker.handle(message, Path(config['env_file']).parent)
     if action not in ('status', 'getEudicToken'):
         return {'success': False, 'error': 'Unsupported action.'}
     token = read_token(config['env_file'])

@@ -70,7 +70,13 @@ function harness(
     fs.readFileSync(require.resolve("../lens-background"), "utf8"),
     ctx,
   );
-  return { db, requests, listeners, run: (name, arg) => ctx[name](arg) };
+  return {
+    db,
+    requests,
+    listeners,
+    context: ctx,
+    run: (name, arg) => ctx[name](arg),
+  };
 }
 test("concurrent collections preserve all words and merge duplicate occurrences", async () => {
   const h = harness();
@@ -229,4 +235,36 @@ test("environment credential is used only in request memory, not browser storage
   const status = await h.run("lensHandle", { action: "lensEnvironmentStatus" });
   assert.equal(status.configured, true);
   assert.equal(status.token, undefined);
+});
+
+test("YouTube captions work without a Supadata key or request", async () => {
+  const h = harness();
+  h.context.getSettings = async () => ({ supadataApiKey: "" });
+  h.context.readBrowserCaptions = async () => ({
+    success: true,
+    transcript: [{ start: 0, duration: 1, text: "native" }],
+    transcriptText: "native",
+  });
+  h.context.harborCacheTranscript = async (video, result) => {
+    h.db[`digest_${video}`] = result;
+  };
+  const result = await h.run("lensFetchTranscript", "video123");
+  assert.equal(result.success, true);
+  assert.equal(result.transcriptText, "native");
+  assert.equal(h.requests.length, 0);
+});
+test("selected local provider is used when browser captions are unavailable", async () => {
+  const h = harness({
+    lens_settings: { autoTranscribe: true },
+    harbor_services: { transcriptionProvider: "local" },
+  });
+  h.context.getSettings = async () => ({ supadataApiKey: "" });
+  h.context.readBrowserCaptions = async () => ({ success: false });
+  h.context.harborAlternativeTranscript = async (video, config) => ({
+    success: true,
+    provider: config.transcriptionProvider,
+  });
+  const result = await h.run("lensFetchTranscript", "video123");
+  assert.equal(result.provider, "local");
+  assert.equal(h.requests.length, 0);
 });

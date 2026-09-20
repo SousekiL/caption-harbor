@@ -16,14 +16,17 @@ test("unpacked extension starts its real service worker and persists learning se
     let worker = context.serviceWorkers()[0];
     if (!worker) worker = await context.waitForEvent("serviceworker");
     const id = new URL(worker.url()).host;
+    await worker.evaluate(() =>
+      chrome.storage.local.set({ ytd_options_language: "zh-CN" }),
+    );
     const page = await context.newPage();
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
     await page.goto(`chrome-extension://${id}/options.html`);
     await expect(page.locator("#harbor-auto")).toBeChecked();
     await page.locator("#harbor-auto").uncheck();
-    await page.locator("#harbor-save").click();
-    await expect(page.locator("#harbor-status")).toContainText("已保存");
+    await page.locator("#settingsForm button[type=submit]").click();
+    await expect(page.locator("#saveStatus")).toContainText("已保存");
     const result = await page.evaluate(() =>
       chrome.runtime.sendMessage({
         action: "lensSaveWord",
@@ -150,6 +153,9 @@ test("native host reads private environment configuration without persisting tok
     let worker = context.serviceWorkers()[0];
     if (!worker) worker = await context.waitForEvent("serviceworker");
     const id = new URL(worker.url()).host;
+    await worker.evaluate(() =>
+      chrome.storage.local.set({ ytd_options_language: "zh-CN" }),
+    );
     const manifest = JSON.parse(
       fs.readFileSync(
         path.join(
@@ -181,5 +187,71 @@ test("native host reads private environment configuration without persisting tok
   } finally {
     await context.close();
     fs.rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test("service configuration and learning controls follow one interface language", async () => {
+  const root = path.resolve(__dirname, "../..");
+  const profile = fs.mkdtempSync(
+    path.join(os.tmpdir(), "caption-harbor-settings-test-"),
+  );
+  const context = await chromium.launchPersistentContext(profile, {
+    headless: true,
+    channel: "chromium",
+    args: [`--disable-extensions-except=${root}`, `--load-extension=${root}`],
+  });
+  try {
+    let worker = context.serviceWorkers()[0];
+    if (!worker) worker = await context.waitForEvent("serviceworker");
+    const page = await context.newPage();
+    await page.setViewportSize({ width: 1100, height: 950 });
+    await page.goto(
+      `chrome-extension://${new URL(worker.url()).host}/options.html`,
+    );
+    await expect(page.locator("#harbor-auto")).toBeChecked();
+    await page.locator('[data-language="en"]').click();
+    await page.locator("#transcriptionProvider").selectOption("local");
+    await expect(page.locator("#localConfiguration")).toBeVisible();
+    await expect(page.locator("#supadataConfiguration")).not.toBeVisible();
+    await expect(page.locator("#localConfiguration")).toContainText("CPU/GPU");
+    const untranslated = await page
+      .locator(".settings-shell")
+      .evaluate((root) => {
+        const clone = root.cloneNode(true);
+        clone
+          .querySelectorAll("textarea,.harbor-reading-preview")
+          .forEach((e) => e.remove());
+        return clone.textContent
+          .split("\n")
+          .map((s) => s.trim())
+          .filter((s) => /[\u4e00-\u9fff]/.test(s));
+      });
+    expect(untranslated).toEqual([]);
+    const aligned = await page.locator(".checkbox-line").evaluate((label) => {
+      const c = label.querySelector("input").getBoundingClientRect();
+      const t = label.querySelector("span").getBoundingClientRect();
+      return Math.abs(c.top + c.height / 2 - t.top - t.height / 2) < 2;
+    });
+    expect(aligned).toBe(true);
+    await page.screenshot({
+      path: "dist/settings-en.png",
+      fullPage: true,
+      animations: "disabled",
+    });
+    await page.locator("#transcriptionProvider").selectOption("groq");
+    await expect(page.locator("#groqApiKey")).toBeVisible();
+    await page.locator("#groqApiKey").fill("fixture-groq");
+    await page.locator("#settingsForm button[type=submit]").click();
+    await expect(page.locator("#saveStatus")).toContainText("Saved");
+    await page.reload();
+    await expect(page.locator("#transcriptionProvider")).toHaveValue("groq");
+    await page.locator('[data-language="zh-CN"]').click();
+    await expect(page.locator("#learningModule > h2")).toHaveText("学习设置");
+    await expect(page.locator("#settingsForm > h2")).toHaveText("字幕与 AI");
+    await page.locator("#harbor-auto").uncheck();
+    await expect(page.locator("#transcriptionChoices")).not.toBeVisible();
+  } finally {
+    await context.close();
+    fs.rmSync(profile, { recursive: true, force: true });
   }
 });

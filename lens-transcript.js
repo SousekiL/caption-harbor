@@ -30,6 +30,51 @@ async function lensDoFetchTranscript(videoId) {
       language: cached.transcriptLanguage || null,
     };
   }
+  const serviceStore = await chrome.storage.local.get([
+    "harbor_services",
+    "lens_settings",
+  ]);
+  const config = {
+    transcriptionProvider: "supadata",
+    autoTranscribe: true,
+    ...serviceStore.lens_settings,
+    ...serviceStore.harbor_services,
+  };
+  const audioKey = `harbor_audio_${videoId}_${config.transcriptionProvider}`;
+  const audioJob = (await chrome.storage.local.get(audioKey))[audioKey];
+  const savedSupadataJob = (
+    await chrome.storage.local.get(`lens_job_${videoId}`)
+  )[`lens_job_${videoId}`];
+  const savedCaptionJob = (
+    await chrome.storage.local.get(`harbor_caption_${videoId}`)
+  )[`harbor_caption_${videoId}`];
+  if (
+    !audioJob &&
+    !savedSupadataJob &&
+    !savedCaptionJob?.jobId &&
+    typeof readBrowserCaptions === "function"
+  ) {
+    try {
+      const native = await readBrowserCaptions(videoId);
+      if (native.success) {
+        await harborCacheTranscript(videoId, native);
+        return native;
+      }
+    } catch {}
+  }
+  if (
+    !audioJob &&
+    !savedSupadataJob &&
+    typeof harborNativeCaptions === "function"
+  ) {
+    const native = await harborNativeCaptions(videoId);
+    if (native.success || native.pending) return native;
+  }
+  if (
+    config.autoTranscribe &&
+    ["groq", "local"].includes(config.transcriptionProvider)
+  )
+    return harborAlternativeTranscript(videoId, config);
   const settings =
     typeof getSettings === "function"
       ? await getSettings()

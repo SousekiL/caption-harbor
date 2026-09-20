@@ -10,11 +10,14 @@ const lensMessage = async (message) => {
   return res;
 };
 const lensStatus = (text) => {
-  lens$("lens-status").textContent = text;
+  lens$("lens-status").textContent =
+    typeof HarborUI !== "undefined" ? HarborUI.text(text) : text;
 };
 function lensNode(tag, text, className) {
   const el = document.createElement(tag);
-  if (text !== undefined) el.textContent = text;
+  if (text !== undefined)
+    el.textContent =
+      typeof HarborUI !== "undefined" ? HarborUI.text(text) : text;
   if (className) el.className = className;
   return el;
 }
@@ -227,7 +230,10 @@ function lensRenderWords() {
       );
     card.append(
       lensButton("删除本地记录", async () => {
-        if (!confirm("删除插件内的这条记录？欧路中的单词会保留。")) return;
+        if (
+          !confirm(HarborUI.text("删除插件内的这条记录？欧路中的单词会保留。"))
+        )
+          return;
         await lensMessage({ action: "lensDeleteWord", id: w.id });
         await lensLoadWords();
       }),

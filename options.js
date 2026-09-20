@@ -9,10 +9,10 @@ const YTD_OPTIONS = (() => {
       languageGroupLabel: "Interface language",
       heading: "Bring your own API keys",
       lede:
-        "Keys stay in this Chrome profile and are sent only to their respective services (Supadata, DeepSeek, and Eudic). This open-source extension has no developer server or analytics.",
+        "Credentials stay on this device and are sent only to their respective services (Supadata, Groq, DeepSeek, and Eudic). There is no developer server or analytics.",
       transcriptProvider: "Transcript provider",
       supadataApiKeyLabel: "Supadata API key",
-      supadataHelp: "Used to fetch timestamped YouTube subtitles. ",
+      supadataHelp: "Optional fallback after reading YouTube captions directly. ",
       supadataLink: "Create a Supadata account and key",
       supadataHelpSuffix:
         ". Supadata generates the key during onboarding.",
@@ -79,10 +79,10 @@ const YTD_OPTIONS = (() => {
       languageGroupLabel: "界面语言",
       heading: "使用你自己的 API 密钥",
       lede:
-        "密钥仅保存在当前 Chrome 个人资料中，仅分别发送给对应的 Supadata、DeepSeek 或欧路服务。本开源扩展没有开发者服务器，也不使用分析服务。",
+        "密钥保存在本机，仅分别发送给对应的 Supadata、Groq、DeepSeek 或欧路服务。本扩展没有开发者服务器，也不使用分析服务。",
       transcriptProvider: "字幕服务",
       supadataApiKeyLabel: "Supadata API 密钥",
-      supadataHelp: "用于获取带时间戳的 YouTube 字幕。",
+      supadataHelp: "直接读取 YouTube 字幕后的可选备用服务。",
       supadataLink: "创建 Supadata 账号并获取密钥",
       supadataHelpSuffix: "。Supadata 会在引导流程中生成密钥。",
       aiProvider: "AI 服务",
@@ -449,17 +449,10 @@ const YTD_OPTIONS = (() => {
         supadataApiKey: supadataApiKeyInput.value,
       });
 
-      if (!settings.supadataApiKey) {
-        setStatus(saveStatus, "addSupadataKey");
-        return;
-      }
-      if (!settings.aiApiKey) {
-        setStatus(saveStatus, "addDeepseekKey");
-        return;
-      }
-
       try {
-        await storage.set({ [settingsApi.STORAGE_KEY]: settings });
+        const existing = (await storage.get("lens_settings")).lens_settings || {};
+        const extra = root.HarborServiceSettings;
+        await storage.set({ [settingsApi.STORAGE_KEY]: settings, ...(extra ? {harbor_services:extra.read(),lens_settings:{...existing,autoTranscribe:extra.enabled()}} : {}) });
         setStatus(saveStatus, "saved");
       } catch (_error) {
         setStatus(saveStatus, "saveFailed");

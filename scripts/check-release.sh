@@ -25,6 +25,14 @@ fail() {
 # Optional entries are included only when present; manifest references are
 # validated separately, so a referenced-but-missing file still fails.
 public_allowlist=(
+  "ui-language.js"
+  "browser-captions.js"
+  "audio-transcription.js"
+  "service-settings.js"
+  "settings-layout.css"
+  "LOCAL-SETUP.html"
+  "native/audio_worker.py"
+  "scripts/setup-audio.py"
   "player-connection.js"
   "fonts/RobotoSlab.ttf"
   "fonts/RobotoSlab-LICENSE.txt"

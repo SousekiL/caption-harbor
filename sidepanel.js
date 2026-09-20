@@ -1413,15 +1413,15 @@ function showState(state) {
 }
 
 function updateLoading(title, subtitle) {
-  document.getElementById("loadingText").textContent = title;
-  document.getElementById("loadingSubtext").textContent = subtitle;
+  document.getElementById("loadingText").textContent = HarborUI.text(title);
+  document.getElementById("loadingSubtext").textContent = HarborUI.text(subtitle);
 }
 
 function showError(title, message) {
   errorAction = null;
   showState("error");
-  document.getElementById("errorTitle").textContent = title;
-  document.getElementById("errorMessage").textContent = message;
+  document.getElementById("errorTitle").textContent = HarborUI.text(title);
+  document.getElementById("errorMessage").textContent = HarborUI.text(message);
   document.getElementById("errorBtn").textContent = "Try Again";
 }
 

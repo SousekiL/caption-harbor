@@ -1,0 +1,12 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Local audio setup · Caption Harbor</title><link rel="stylesheet" href="options.css"></head><body><main class="settings-shell">
+<h1>Local audio setup / 本机音频配置</h1>
+<p>Existing YouTube captions can be read in the browser without these tools or a Supadata key.<br>读取 YouTube 已有字幕无需以下组件，也不需要 Supadata key。</p>
+<h2>Groq</h2><p>Audio preparation requires yt-dlp, FFmpeg and the native helper. Audio is sent to Groq for transcription; a Groq API key is required.<br>需要 yt-dlp、FFmpeg 和本机助手取得音频，然后发送至 Groq 转录，需填写 Groq API key。</p>
+<h2>Local Whisper / 本地 Whisper</h2><p>Also install whisper.cpp and a model. Processing uses this Mac's CPU/GPU and RAM; audio stays local after download. Base.en is smaller and English-only; Small.en is English-only; Small supports multiple languages.<br>还需 whisper.cpp 及模型。转录使用本机 CPU/GPU 和内存，下载后的音频在本地处理。Base.en 较小、仅英文；Small.en 仅英文；Small 支持多语言。</p>
+<section class="card"><h2>macOS (Homebrew)</h2><p>Run in Terminal from the extension folder / 在插件目录的终端执行：</p><pre>python3 scripts/setup-audio.py --model small.en
+python3 scripts/install-native-host.py --browser browseros</pre>
+<p>For Groq without a local model / 只使用 Groq：</p><pre>python3 scripts/setup-audio.py --groq-only
+python3 scripts/install-native-host.py --browser browseros</pre></section>
+<p>The installer downloads dependencies and, when selected, a model (hundreds of MB). No API key is included. After setup, return to Settings and check local components.<br>安装器会下载依赖，选择本地模式时还会下载数百 MB 的模型，不包含 API key。完成后回设置页检查本机组件。</p>
+<p>Only publicly accessible videos are supported. Downloads may be limited by YouTube. Audio jobs are limited to four hours / 500 MB source files. Temporary files are kept in the private application directory and old jobs are removed when new tasks start after 24 hours. Groq retries may incur additional charges.<br>支持可公开访问的视频，下载可能受 YouTube 限制。单个任务限制为四小时 / 500 MB 源文件。临时文件保存在应用私有目录，超过 24 小时的旧任务会在开始新任务时清理；Groq 重试可能再次收费。</p>
+</main></body></html>
