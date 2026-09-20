@@ -25,6 +25,9 @@ fail() {
 # Optional entries are included only when present; manifest references are
 # validated separately, so a referenced-but-missing file still fails.
 public_allowlist=(
+  "docs/images/reader.png"
+  "docs/images/reader-en.png"
+  "icons/icon.svg"
   "ui-language.js"
   "browser-captions.js"
   "audio-transcription.js"

@@ -227,26 +227,20 @@ test("context explanation suggests editable lemma and saves it", async ({
     .poll(() => page.evaluate(() => __store.lens_words?.[0]?.word))
     .toBe("reinforced learning");
 });
-test("imports subtitles without keys, exports VTT, and sends loop boundaries", async ({
+test("reader keeps search and copy/export without the extra toolbar", async ({
   page,
 }) => {
   await setup(page);
-  await page.locator("input[type=file]").setInputFiles({
-    name: "example.srt",
-    mimeType: "text/plain",
-    buffer: Buffer.from(
-      "1\n00:00:00,000 --> 00:00:02,500\nImported subtitles\n\n2\n00:00:03,000 --> 00:00:05,000\nSecond sentence",
-    ),
-  });
-  await expect(page.locator("#transcriptList")).toContainText(
-    "Imported subtitles",
-  );
-  await page.getByRole("button", { name: "单句循环", exact: true }).click();
-  expect(await page.evaluate(() => __player.at(-1).command)).toBe("loop");
-  await page.locator(".lens-file-menu summary").click();
+  await expect(page.locator(".lens-tools,.lens-file-menu")).toHaveCount(0);
+  await expect(page.locator("#copyTranscriptBtn")).toBeVisible();
+  await expect(page.locator("#exportTranscriptBtn")).toBeVisible();
+  await page.locator("#transcriptSearchInput").fill("understand");
+  await expect(page.locator("#transcriptSearchCount")).toHaveText("1 of 2");
+  await page.locator("#transcriptSearchNextBtn").click();
+  await expect(page.locator("#transcriptSearchCount")).toHaveText("2 of 2");
   const download = page.waitForEvent("download");
-  await page.getByRole("button", { name: "VTT", exact: true }).click();
-  expect((await download).suggestedFilename()).toMatch(/\.vtt$/);
+  await page.locator("#exportTranscriptBtn").click();
+  expect((await download).suggestedFilename()).toMatch(/\.txt$/);
 });
 test("video questions and self-test reveal answers only on request", async ({
   page,
@@ -273,7 +267,7 @@ test("narrow panel is readable and produces a review screenshot", async ({
   page,
 }) => {
   await setup(page);
-  await page.setViewportSize({ width: 380, height: 850 });
+  await page.setViewportSize({ width: 380, height: 540 });
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,
@@ -281,6 +275,15 @@ test("narrow panel is readable and produces a review screenshot", async ({
   ).toBe(true);
   await page.screenshot({
     path: "dist/caption-harbor-preview.png",
+    fullPage: true,
+    animations: "disabled",
+  });
+  await page.evaluate(() =>
+    chrome.storage.local.set({ ytd_options_language: "en" }),
+  );
+  await expect(page.locator("#settingsBtn")).toHaveText("Settings");
+  await page.screenshot({
+    path: "dist/caption-harbor-preview-en.png",
     fullPage: true,
     animations: "disabled",
   });

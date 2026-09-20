@@ -14,9 +14,9 @@
 }
 /* Caption Harbor: paper, deep teal, generous reading space. */
 :root {
-  --accent: #246b69;
-  --accent-hover: #17504f;
-  --accent-dim: rgba(36, 107, 105, 0.1);
+  --accent: #3d755d;
+  --accent-hover: #315e4b;
+  --accent-dim: rgba(61, 117, 93, 0.1);
   --bg: #f6f5f0;
   --text: #243432;
 }
@@ -163,7 +163,7 @@
   padding: 8px;
   border: 0;
   border-radius: 6px;
-  background: #246b69;
+  background: #3d755d;
   color: #fff;
   cursor: pointer;
 }
@@ -177,7 +177,7 @@ input:focus-visible,
 textarea:focus-visible,
 select:focus-visible,
 summary:focus-visible {
-  outline: 2px solid #246b69;
+  outline: 2px solid #3d755d;
   outline-offset: 3px;
 }
 button:disabled {
@@ -244,7 +244,7 @@ button:disabled {
 }
 .harbor-reading-controls input {
   width: 100%;
-  accent-color: #246b69;
+  accent-color: #3d755d;
 }
 .harbor-reading-controls button {
   justify-self: start;

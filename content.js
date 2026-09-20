@@ -248,7 +248,7 @@ function createDigestButton() {
   digestButton.setAttribute("aria-label", "Open Caption Harbor");
   digestButton.innerHTML = `<span class="ytd-digest-label">Digest</span>`;
 
-  // Style the button — rounded pill in our terracotta accent, sized to sit
+  // Style the button — rounded pill in our green accent, sized to sit
   // comfortably among YouTube's native action buttons.
   digestButton.style.cssText = `
     display: inline-flex;
@@ -258,7 +258,7 @@ function createDigestButton() {
     height: 36px;
     border: none;
     border-radius: 18px;
-    background: #c8674f;
+    background: #3D755D;
     color: white;
     font-family: "Roboto", "Arial", sans-serif;
     font-size: 14px;
@@ -276,12 +276,12 @@ function createDigestButton() {
 
   // Hover effects
   digestButton.addEventListener("mouseenter", () => {
-    digestButton.style.background = "#b25742";
+    digestButton.style.background = "#315E4B";
     digestButton.style.transform = "scale(1.02)";
   });
 
   digestButton.addEventListener("mouseleave", () => {
-    digestButton.style.background = "#c8674f";
+    digestButton.style.background = "#3D755D";
     digestButton.style.transform = "scale(1)";
   });
 
@@ -459,7 +459,7 @@ function injectNoteButton() {
     <span>Note</span>
   `;
 
-  // Soft rounded pill in the terracotta accent, with a gentle shadow.
+  // Soft rounded pill in the green accent, with a gentle shadow.
   // Start hidden; visibility is controlled by mouse activity.
   noteButton.style.cssText = `
     position: absolute;
@@ -469,7 +469,7 @@ function injectNoteButton() {
     display: flex;
     align-items: center;
     padding: 9px 16px;
-    background: #c8674f;
+    background: #3D755D;
     color: white;
     border: none;
     border-radius: 999px;
@@ -506,13 +506,13 @@ function injectNoteButton() {
 
   // Hover effect — lift slightly
   noteButton.addEventListener("mouseenter", () => {
-    noteButton.style.background = "#b25742";
+    noteButton.style.background = "#315E4B";
     noteButton.style.boxShadow = "0 6px 18px rgba(0,0,0,0.35)";
     noteButton.style.transform = "translateY(-1px)";
   });
 
   noteButton.addEventListener("mouseleave", () => {
-    noteButton.style.background = "#c8674f";
+    noteButton.style.background = "#3D755D";
     noteButton.style.boxShadow = "0 4px 14px rgba(0,0,0,0.3)";
     noteButton.style.transform = "translateY(0)";
   });
@@ -617,7 +617,7 @@ async function saveCurrentNote() {
       if (noteButton) {
         noteButton.innerHTML =
           '<span style="letter-spacing: 0.2px;">SAVED</span>';
-        noteButton.style.background = "#7c8b6f";
+        noteButton.style.background = "#3D755D";
       }
       showNoteSavedToast(result.note);
     } else {
@@ -638,7 +638,7 @@ async function saveCurrentNote() {
   setTimeout(() => {
     if (noteButton) {
       noteButton.innerHTML = originalContent;
-      noteButton.style.background = "#c8674f";
+      noteButton.style.background = "#3D755D";
       noteButton.style.pointerEvents = "auto";
     }
   }, 2000);
@@ -655,11 +655,11 @@ function showNoteSavedToast(note) {
   const toast = document.createElement("div");
   toast.id = "ytd-note-toast";
   toast.innerHTML = `
-    <div style="font-weight: 700; margin-bottom: 6px; color: #c8674f;">Note saved</div>
+    <div style="font-weight: 700; margin-bottom: 6px; color: #3D755D;">Note saved</div>
     <div style="font-size: 12px; color: #6b6258; margin-bottom: 8px;">${escapeHtmlForContent(note.timestamp)} — ${escapeHtmlForContent(note.videoTitle)}</div>
     <div style="font-size: 13px; line-height: 1.55; color: #2e2a24;">"${escapeHtmlForContent(note.text)}"</div>
     <div style="margin-top: 10px; font-size: 11px;">
-      <a href="${escapeHtmlForContent(note.timestampedUrl)}" style="color: #c8674f; font-weight: 600; text-decoration: none;">Copy link</a>
+      <a href="${escapeHtmlForContent(note.timestampedUrl)}" style="color: #3D755D; font-weight: 600; text-decoration: none;">Copy link</a>
     </div>
   `;
 
