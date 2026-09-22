@@ -153,19 +153,48 @@
   padding-left: 8px;
   padding-right: 8px;
 }
+/* One consistent two-by-two selection menu, independent of caption font size. */
 .explain-tooltip {
+  position: fixed;
+  width: 248px;
   max-width: calc(100vw - 20px);
-  flex-wrap: wrap;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 4px;
+  gap: 2px;
+  border-radius: 12px;
+}
+.explain-tooltip button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 40px;
+  margin: 0;
+  padding: 9px 10px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 20px;
+  white-space: nowrap;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
 }
 .explain-tooltip .lens-word-btn,
-.explain-tooltip .lens-concept-btn,
-.explain-tooltip .lens-collect-btn {
-  padding: 8px;
-  border: 0;
-  border-radius: 6px;
-  background: #3d755d;
-  color: #fff;
-  cursor: pointer;
+.explain-tooltip .lens-concept-btn {
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-weight: 600;
+}
+.explain-tooltip button:hover:not(:disabled) {
+  background: #e2ece6;
+  color: var(--accent-hover);
+}
+.explain-tooltip button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 ::highlight(harbor-vocabulary) {
   background: #dcebc9;
@@ -188,11 +217,6 @@ button:disabled {
   flex: 1 0 auto;
   min-width: 42px;
   white-space: nowrap;
-}
-.explain-tooltip .explain-btn,
-.explain-tooltip .selection-note-btn {
-  flex: 1 1 auto;
-  padding: 8px;
 }
 /* Caption typography applies equally to original, translated and bilingual rows. */
 #transcriptList .transcript-text,
@@ -365,3 +389,11 @@ body:has(#contentArea) {
   width: 100%;
   min-width: 0;
 }
+
+.lookup-preferences {
+  padding-bottom: 18px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #d6dfd8;
+}
+.lookup-preferences p { margin: 4px 0; }
+.lookup-preferences [role="status"] { font-size: 12px; color: var(--accent); }

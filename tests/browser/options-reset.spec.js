@@ -16,7 +16,7 @@ test("reset clears every settings form so saving cannot restore deleted credenti
     await worker.evaluate(() => chrome.storage.local.set({
       ytd_options_language: "zh-CN",
       harbor_services: { transcriptionProvider: "groq", groqApiKey: "fixture-groq", localModel: "base.en" },
-      lens_settings: { credentialSource: "manual", eudicToken: "fixture-eudic", categoryId: "42", categoryName: "Old book", autoTranscribe: false },
+      lens_settings: { explanationLanguage: "en", credentialSource: "manual", eudicToken: "fixture-eudic", categoryId: "42", categoryName: "Old book", autoTranscribe: false },
       harbor_reading: { font: "serif", size: 25 },
     }));
     const page = await context.newPage();
@@ -32,6 +32,7 @@ test("reset clears every settings form so saving cannot restore deleted credenti
     await expect(page.locator("#groqApiKey")).toHaveValue("");
     await expect(page.locator("#harbor-token")).toHaveValue("");
     await expect(page.locator("#harbor-category")).toHaveValue("0");
+    await expect(page.locator("#harbor-explanation-language")).toHaveValue("zh-CN");
     await expect(page.locator("#transcriptionProvider")).toHaveValue("supadata");
     await expect(page.locator("#harbor-auto")).toBeChecked();
     await page.locator("#settingsForm button[type=submit]").click();

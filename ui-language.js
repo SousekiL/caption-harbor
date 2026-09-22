@@ -6,6 +6,11 @@ var HarborUI = (() => {
     "Settings saved": "设置已保存",
     "Subtitles & AI": "字幕与 AI",
     "Learning settings": "学习设置",
+    "Lookup explanations": "查词与解释",
+    "Explanation language": "解释语言",
+    "English explanations only": "纯英文解释",
+    "Chinese explanations with English support": "中文解释（英文辅助）",
+    "Saved automatically. Applies to word and concept explanations; independent of interface and subtitle language. Existing saved definitions stay unchanged.": "自动保存，对下一次词义和概念查询生效；独立于界面及字幕语言，已收藏的释义保持原样。",
     "Automatically transcribe when captions are unavailable":
       "没有字幕时自动转录音频",
     "Transcription method": "转录方式",

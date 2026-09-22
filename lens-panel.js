@@ -78,7 +78,10 @@ async function lensExplain(kind) {
   );
   overlay.append(box);
   const close = lensButton("关闭", () => overlay.remove());
-  box.append(close, lensNode("h2", selected.original));
+  const selectedHeading = lensNode("h2");
+  selectedHeading.textContent = selected.original;
+  selectedHeading.dataset.userContent = "true";
+  box.append(close, selectedHeading);
   const label = lensNode("label", "收藏词条（可编辑）");
   const word = lensNode("input");
   word.value = selected.original.slice(0, 160);
@@ -86,6 +89,7 @@ async function lensExplain(kind) {
   label.append(word);
   box.append(label);
   const output = lensNode("p", "正在结合上下文解释…", "lens-pre");
+  output.dataset.userContent = "true";
   const info = lensNode("p", "");
   let meaning = "";
   let edited = false;

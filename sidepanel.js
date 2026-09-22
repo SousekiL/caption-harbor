@@ -2000,7 +2000,6 @@ function setupExplainFeature() {
   tooltip.setAttribute("role", "toolbar");
   tooltip.setAttribute("aria-label", "Selected transcript actions");
   tooltip.innerHTML = `
-    <button class="explain-btn" type="button">Explain</button>
     <button class="lens-word-btn" type="button">词义</button>
     <button class="lens-concept-btn" type="button">概念</button>
     <button class="lens-collect-btn" type="button">收藏</button>
@@ -2066,9 +2065,9 @@ function setupExplainFeature() {
     // becomes visible first, Chrome paints it at its default left edge for
     // one frame before moving it to the selection center.
     const rect = range.getBoundingClientRect();
-    tooltip.style.top = `${rect.bottom + window.scrollY + 8}px`;
+    tooltip.style.top = `${rect.bottom + 8}px`;
     tooltip.style.left = `${rect.left + rect.width / 2}px`;
-    tooltip.style.display = "flex";
+    tooltip.style.display = "grid";
     const bounds = tooltip.getBoundingClientRect();
     const center = Math.max(
       bounds.width / 2 + 10,
@@ -2107,18 +2106,6 @@ function setupExplainFeature() {
     },
     { signal: selectionSignal },
   );
-
-  // Handle explain button click
-  tooltip
-    .querySelector(".explain-btn")
-    .addEventListener("click", async (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      if (!selectedText) return;
-
-      tooltip.style.display = "none";
-      await showExplanation(selectedText);
-    });
 
   // Save the exact selected words at the first selected transcript row. This
   // action does not move playback and does not ask the AI to rewrite the text.

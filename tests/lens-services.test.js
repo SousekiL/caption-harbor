@@ -782,3 +782,23 @@ test("Bilibili AI English tracks satisfy the English language preference", async
   const result = await h.run("lensFetchTranscript", "bili_BV1abc1234_1");
   assert.equal(result.success, true);
 });
+
+test("lookup language is independent of interface language for words and concepts", async () => {
+  for (const kind of ["word", "concept"]) {
+    for (const [language, ui] of [["en", "zh-CN"], ["zh-CN", "en"]]) {
+      const h = harness({ lens_settings: { explanationLanguage: language }, ytd_options_language: ui });
+      let request;
+      h.context.requestAiCompletion = async (value) => { request = value; return { text: '{"lemma":"tomato","explanation":"A definition"}' }; };
+      await h.run("lensHandle", { action: "lensAI", kind, selected: "tomatoes", context: "Some tomatoes." });
+      const prompt = request.messages[0].content;
+      if (language === "en") {
+        assert.match(prompt, /English only/);
+        assert.doesNotMatch(prompt, /中文含义|中文解释|请使用中文回答|用中文解释/);
+      } else {
+        assert.match(prompt, /Simplified Chinese/);
+        assert.match(prompt, /English examples/);
+        assert.doesNotMatch(prompt, /values must be English/);
+      }
+    }
+  }
+});

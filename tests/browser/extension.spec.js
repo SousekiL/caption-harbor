@@ -56,7 +56,15 @@ test("unpacked extension starts its real service worker and persists learning se
         ),
       )
       .toBe(32);
+    await page.locator("#harbor-explanation-language").selectOption("en");
+    await expect.poll(() => page.evaluate(async () => (await chrome.storage.local.get("lens_settings")).lens_settings?.explanationLanguage)).toBe("en");
     await page.reload();
+    await expect(page.locator("#harbor-explanation-language")).toHaveValue("en");
+    await page.locator('[data-language="en"]').click();
+    await expect(page.locator("#harbor-explanation-language")).toHaveValue("en");
+    await page.locator("#harbor-explanation-language").selectOption("zh-CN");
+    await expect.poll(() => page.evaluate(async () => (await chrome.storage.local.get("lens_settings")).lens_settings?.explanationLanguage)).toBe("zh-CN");
+    await page.locator('[data-language="zh-CN"]').click();
     await expect(page.locator("#reading-font")).toHaveValue("serif");
     await expect(page.locator("#reading-size")).toHaveValue("32");
     await expect(page.locator(".harbor-reading-preview")).toHaveCSS(

@@ -2,7 +2,13 @@
 (async () => {
   const root = document.createElement("section");
   root.className = "lens-settings";
-  root.innerHTML = `<h3>Eudic</h3>
+  root.innerHTML = `<section class="lookup-preferences">
+  <h3>Lookup explanations</h3>
+  <label for="harbor-explanation-language">Explanation language</label>
+  <select id="harbor-explanation-language"><option value="en">English explanations only</option><option value="zh-CN">Chinese explanations with English support</option></select>
+  <p>Saved automatically. Applies to word and concept explanations; independent of interface and subtitle language. Existing saved definitions stay unchanged.</p>
+  <span id="harbor-explanation-status" role="status"></span>
+  </section><h3>Eudic</h3>
   <label>欧路授权来源 <select id="harbor-source"><option value="environment">本机环境变量（EUDIC_TOKEN）</option><option value="manual">手动填写</option></select></label>
   <p>本机模式通过已安装的本机桥接读取，不会把 Token 保存进浏览器。<span id="harbor-environment-status"></span></p>
   <button id="harbor-environment" type="button">检查本机环境配置</button>
@@ -30,6 +36,20 @@
     ...(await chrome.storage.local.get("lens_settings")).lens_settings,
   };
 
+  $("explanation-language").value = config.explanationLanguage === "en" ? "en" : "zh-CN";
+  $("explanation-language").addEventListener("change", async () => {
+    const input = $("explanation-language");
+    input.disabled = true;
+    try {
+      const stored = (await chrome.storage.local.get("lens_settings")).lens_settings || {};
+      await chrome.storage.local.set({ lens_settings: { ...stored, explanationLanguage: input.value } });
+      $("explanation-status").textContent = HarborUI.text("Settings saved");
+    } catch {
+      $("explanation-status").textContent = HarborUI.text("Save failed; please retry");
+    } finally {
+      input.disabled = false;
+    }
+  });
   $("token").value = config.eudicToken || "";
   $("source").value =
     config.credentialSource || (config.eudicToken ? "manual" : "environment");
@@ -44,6 +64,8 @@
     );
   $("category").value = config.categoryId || "0";
   window.addEventListener("harbor-data-reset", () => {
+    $("explanation-language").value = "zh-CN";
+    $("explanation-status").textContent = "";
     $("token").value = "";
     $("source").value = "environment";
     $("category").replaceChildren(new Option("默认生词本", "0"));
@@ -58,6 +80,7 @@
     await chrome.storage.local.set({
       lens_settings: {
         ...(await chrome.storage.local.get("lens_settings")).lens_settings,
+        explanationLanguage: $("explanation-language").value,
         eudicToken:
           $("source").value === "manual" ? $("token").value.trim() : "",
         credentialSource: $("source").value,

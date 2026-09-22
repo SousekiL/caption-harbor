@@ -833,3 +833,29 @@ test("closing an explanation while it loads does not reject or overwrite a later
   });
   expect(result).toBe("closed");
 });
+
+test("selection menu has four compact actions without wrapping at narrow widths", async ({ page }) => {
+  await setup(page);
+  await page.evaluate(() => chrome.storage.local.set({ ytd_options_language: "en", harbor_reading: { font: "lexend", size: 32 } }));
+  for (const width of [320, 430]) {
+    await page.setViewportSize({ width, height: 850 });
+    await selectWord(page);
+    const toolbar = page.locator('#explainTooltip');
+    await expect(toolbar.locator('button')).toHaveCount(4);
+    const dimensions = await toolbar.evaluate(el => {
+      const bounds = el.getBoundingClientRect();
+      const buttons = [...el.querySelectorAll('button')].map(button => button.getBoundingClientRect());
+      return { left: bounds.left, right: bounds.right, height: bounds.height, rows: new Set(buttons.map(b=>Math.round(b.top))).size, fits: [...el.querySelectorAll('button')].every(b=>b.scrollWidth<=b.clientWidth) };
+    });
+    expect(dimensions.left).toBeGreaterThanOrEqual(9);
+    expect(dimensions.right).toBeLessThanOrEqual(width - 9);
+    expect(dimensions.height).toBeLessThanOrEqual(100);
+    expect(dimensions.rows).toBe(2);
+    expect(dimensions.fits).toBe(true);
+  }
+  await page.evaluate(() => chrome.storage.local.set({ harbor_reading: { font: "lexend", size: 13.5 }, ytd_options_language: "zh-CN" }));
+  await selectWord(page);
+  await expect(page.locator('#explainTooltip')).toHaveCSS('opacity', '1');
+  await page.screenshot({path:'dist/selection-menu-v2.1.6.png', animations:'disabled'});
+  await page.locator('#explainTooltip').screenshot({path:'dist/selection-menu-detail-v2.1.6.png', animations:'disabled'});
+});

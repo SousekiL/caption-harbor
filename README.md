@@ -32,6 +32,13 @@ This project is installed locally from GitHub, not through the Chrome Web Store.
 | Playback following | Transcript highlighting and scrolling | Bound-video playback reads; video seeks keep following, while manual caption scrolling pauses it |
 | Settings | Provider keys and options-page language controls | Two sections, Subtitles & AI and Learning settings; one interface-language choice also applies to the side panel |
 
+## New in 2.1.6
+
+- A compact two-by-two selection menu: Word meaning, Concept, Collect, Note.
+- Settings → Learning settings → Lookup explanations now offers English-only or Chinese-led explanations with English support. Saves automatically for the next word/concept lookup, independently of interface and subtitle language.
+- Chinese-led explanations are the default; existing saved definitions are retained.
+- Reload the extension after updating in the same directory. This update does not require reinstalling the native helper or models.
+
 ## Fixed in 2.1.5
 
 - Keep analysis, transcript caches, note filters, playback actions, and learning progress bound to the intended video during navigation.

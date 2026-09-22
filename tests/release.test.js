@@ -17,7 +17,7 @@ test("manifest uses minimized install-time permissions", () => {
   assert.ok(!manifest.permissions.includes("activeTab"));
   assert.ok(manifest.host_permissions.includes("https://api.deepseek.com/*"));
   assert.equal(Object.hasOwn(manifest, "optional_host_permissions"), false);
-  assert.equal(manifest.version, "2.1.5");
+  assert.equal(manifest.version, "2.1.6");
 });
 
 test("release copy describes the fork and online data flow", () => {
@@ -44,27 +44,6 @@ test("product UI contains no emoji or emoji-like pictographs", () => {
     /\p{Extended_Pictographic}|[✓✕⧉▶]/u,
   );
   assert.doesNotMatch(productUi, /&#(?:9655|9888);/);
-});
-
-test("selection actions use two equal edge-to-edge hover areas", () => {
-  const css = read("sidepanel.css");
-
-  assert.match(
-    css,
-    /\.explain-tooltip\s*\{[^}]*padding:\s*0;[^}]*overflow:\s*hidden;/,
-  );
-  assert.match(
-    css,
-    /\.explain-btn,\s*\.selection-note-btn\s*\{[^}]*flex:\s*1 1 50%;[^}]*border-radius:\s*0;/,
-  );
-  assert.match(
-    css,
-    /\.explain-tooltip\s*\{[^}]*animation:\s*selectionToolbarIn/,
-  );
-  assert.match(
-    css,
-    /@keyframes selectionToolbarIn\s*\{[\s\S]*transform:\s*translate\(-50%, 4px\);[\s\S]*transform:\s*translate\(-50%, 0\);/,
-  );
 });
 
 test("note delete is an accessible SVG action at the end of the action row", () => {

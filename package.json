@@ -1,6 +1,6 @@
 {
   "name": "caption-harbor",
-  "version": "2.1.5",
+  "version": "2.1.6",
   "private": true,
   "description": "Bilingual captions, audio transcription, vocabulary, AI questions, and notes for YouTube, Bilibili, and Apple Podcasts.",
   "license": "MIT",
