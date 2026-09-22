@@ -121,7 +121,12 @@ async function lensExplain(kind) {
     kind === "concept" ? "概念解释" : "词义与收藏",
   );
   overlay.append(box);
-  const close = lensButton("关闭", () => overlay.remove());
+  const dismiss = () => {
+    dismissSelectionActions(true);
+    lensActiveSelection = null;
+    overlay.remove();
+  };
+  const close = lensButton("关闭", dismiss);
   const selectedHeading = lensNode("h2");
   selectedHeading.textContent = selected.original;
   selectedHeading.dataset.userContent = "true";
@@ -182,10 +187,10 @@ async function lensExplain(kind) {
       }),
     );
   overlay.addEventListener("click", (e) => {
-    if (e.target === overlay) overlay.remove();
+    if (e.target === overlay) dismiss();
   });
   overlay.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") overlay.remove();
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); dismiss(); }
     if (e.key === "Tab") {
       const items = [...box.querySelectorAll("button,input")].filter(
         (x) => !x.disabled,

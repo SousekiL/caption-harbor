@@ -32,6 +32,12 @@ This project is installed locally from GitHub, not through the Chrome Web Store.
 | Playback following | Transcript highlighting and scrolling | Bound-video playback reads; video seeks keep following, while manual caption scrolling pauses it |
 | Settings | Provider keys and options-page language controls | Two sections, Subtitles & AI and Learning settings; one interface-language choice also applies to the side panel |
 
+## New in 2.1.8
+
+- Closing a word/concept dialog also clears its text selection and hides the selection menu, preventing stale mouseup events from reopening it.
+- The selection menu now has a close button and supports Escape.
+- Backdrop dismissal uses the same cleanup; a fresh selection reopens the menu normally.
+
 ## New in 2.1.7
 
 - Dictionary-style word lookups with a lemma, UK/US IPA, bold parts of speech, senses, examples and collocations.

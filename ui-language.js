@@ -100,6 +100,8 @@ var HarborUI = (() => {
     Explain: "解释",
     Note: "笔记",
     Close: "关闭",
+    "Selected text": "已选文字",
+    "Dismiss selection": "收起划词菜单",
     "My vocabulary": "我的生词",
     "Search words or definitions": "搜索单词或解释",
     "Retry pending syncs": "重试待同步",

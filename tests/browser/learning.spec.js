@@ -841,23 +841,23 @@ test("selection menu has four compact actions without wrapping at narrow widths"
     await page.setViewportSize({ width, height: 850 });
     await selectWord(page);
     const toolbar = page.locator('#explainTooltip');
-    await expect(toolbar.locator('button')).toHaveCount(4);
+    await expect(toolbar.locator('button:not(.selection-dismiss-btn)')).toHaveCount(4);
     const dimensions = await toolbar.evaluate(el => {
       const bounds = el.getBoundingClientRect();
-      const buttons = [...el.querySelectorAll('button')].map(button => button.getBoundingClientRect());
+      const buttons = [...el.querySelectorAll('button:not(.selection-dismiss-btn)')].map(button => button.getBoundingClientRect());
       return { left: bounds.left, right: bounds.right, height: bounds.height, rows: new Set(buttons.map(b=>Math.round(b.top))).size, fits: [...el.querySelectorAll('button')].every(b=>b.scrollWidth<=b.clientWidth) };
     });
     expect(dimensions.left).toBeGreaterThanOrEqual(9);
     expect(dimensions.right).toBeLessThanOrEqual(width - 9);
-    expect(dimensions.height).toBeLessThanOrEqual(100);
+    expect(dimensions.height).toBeLessThanOrEqual(130);
     expect(dimensions.rows).toBe(2);
     expect(dimensions.fits).toBe(true);
   }
   await page.evaluate(() => chrome.storage.local.set({ harbor_reading: { font: "lexend", size: 13.5 }, ytd_options_language: "zh-CN" }));
   await selectWord(page);
   await expect(page.locator('#explainTooltip')).toHaveCSS('opacity', '1');
-  await page.screenshot({path:'dist/selection-menu-v2.1.6.png', animations:'disabled'});
-  await page.locator('#explainTooltip').screenshot({path:'dist/selection-menu-detail-v2.1.6.png', animations:'disabled'});
+  await page.screenshot({path:'dist/selection-menu-v2.1.8.png', animations:'disabled'});
+  await page.locator('#explainTooltip').screenshot({path:'dist/selection-menu-detail-v2.1.8.png', animations:'disabled'});
 });
 
 test("dictionary lookup shows IPA, bold part of speech and labeled examples and saves them", async ({page}) => {
@@ -895,4 +895,35 @@ test("English dictionary results stay English in a Chinese UI and safely render 
   await expect(dialog.locator('.dictionary-ipa')).toHaveCount(0);
   await page.setViewportSize({width:320,height:700});
   expect(await dialog.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
+});
+
+test('closing lookup dialogs clears the selection and never resurrects the menu', async ({page}) => {
+  await setup(page);
+  for (const kind of ['词义', '概念']) {
+    for (const method of ['button','escape','backdrop']) {
+      await selectWord(page);
+      await page.getByRole('button',{name:kind,exact:true}).click();
+      const dialog=page.getByRole('dialog'); await expect(dialog).toBeVisible();
+      if (method==='button') await dialog.getByRole('button',{name:'关闭',exact:true}).click();
+      else if (method==='escape') await page.keyboard.press('Escape');
+      else await page.locator('.explain-modal-overlay').click({position:{x:2,y:2}});
+      await expect(dialog).toHaveCount(0);
+      await expect(page.locator('#explainTooltip')).toBeHidden();
+      expect(await page.evaluate(()=>getSelection().toString())).toBe('');
+      await page.evaluate(()=>document.dispatchEvent(new MouseEvent('mouseup',{bubbles:true})));
+      await expect(page.locator('#explainTooltip')).toBeHidden();
+    }
+  }
+});
+test('selection menu can be dismissed with its close control or Escape and reopened by a fresh selection',async({page})=>{
+  await setup(page);
+  await selectWord(page);
+  await page.getByRole('button',{name:'收起划词菜单',exact:true}).click();
+  await expect(page.locator('#explainTooltip')).toBeHidden();
+  expect(await page.evaluate(()=>getSelection().toString())).toBe('');
+  await selectWord(page);
+  await expect(page.locator('#explainTooltip')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#explainTooltip')).toBeHidden();
+  expect(await page.evaluate(()=>getSelection().toString())).toBe('');
 });

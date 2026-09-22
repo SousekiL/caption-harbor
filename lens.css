@@ -435,3 +435,7 @@ body:has(#contentArea) {
 .lens-dialog-header button { padding: 5px 8px; border-color: transparent; background: transparent; }
 .lens-dictionary-dialog h2 { padding-top: 0; }
 .lens-dictionary-dialog > * { flex-shrink: 0; }
+
+.selection-menu-header { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; min-width: 0; padding-left: 8px; color: var(--text-muted); font-size: 10px; }
+.explain-tooltip .selection-dismiss-btn { min-height: 26px; width: 28px; padding: 5px; margin: 0; color: var(--text-muted); }
+.selection-dismiss-btn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; pointer-events: none; }

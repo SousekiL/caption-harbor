@@ -2000,6 +2000,7 @@ function setupExplainFeature() {
   tooltip.setAttribute("role", "toolbar");
   tooltip.setAttribute("aria-label", "Selected transcript actions");
   tooltip.innerHTML = `
+    <div class="selection-menu-header"><span>Selected text</span><button class="selection-dismiss-btn" type="button" aria-label="Dismiss selection" title="Dismiss selection"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg></button></div>
     <button class="lens-word-btn" type="button">词义</button>
     <button class="lens-concept-btn" type="button">概念</button>
     <button class="lens-collect-btn" type="button">收藏</button>
@@ -2007,6 +2008,16 @@ function setupExplainFeature() {
   `;
   tooltip.style.display = "none";
   document.body.appendChild(tooltip);
+  tooltip.querySelector(".selection-dismiss-btn").addEventListener("click", () => {
+    dismissSelectionActions(true);
+    lensActiveSelection = null;
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && tooltip.style.display !== "none") {
+      dismissSelectionActions(true);
+      lensActiveSelection = null;
+    }
+  }, { signal: selectionSignal });
 
   let selectedText = "";
   let selectedTimestamp = 0;
@@ -2082,7 +2093,12 @@ function setupExplainFeature() {
   // Listen for text selection
   document.addEventListener(
     "mouseup",
-    () => {
+    (event) => {
+      // A mouseup inside a dialog or elsewhere must not revive an old range.
+      if (!transcriptList.contains(event.target) || document.querySelector(".explain-modal-overlay")) {
+        dismissSelectionActions();
+        return;
+      }
       const selection = window.getSelection();
       const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
       if (
@@ -2179,12 +2195,12 @@ async function showExplanation(selectedText) {
 
   document.body.appendChild(modal);
 
-  // Close handlers
-  document
-    .getElementById("closeExplain")
-    .addEventListener("click", () => modal.remove());
-  modal.addEventListener("click", (e) => {
-    if (e.target === modal) modal.remove();
+  // Close every explanation together with its originating selection.
+  const dismiss = () => { dismissSelectionActions(true); modal.remove(); };
+  document.getElementById("closeExplain").addEventListener("click", dismiss);
+  modal.addEventListener("click", (e) => { if (e.target === modal) dismiss(); });
+  modal.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); dismiss(); }
   });
 
   // Get some context around the selection from the transcript
