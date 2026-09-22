@@ -32,6 +32,14 @@ This project is installed locally from GitHub, not through the Chrome Web Store.
 | Playback following | Transcript highlighting and scrolling | Bound-video playback reads; video seeks keep following, while manual caption scrolling pauses it |
 | Settings | Provider keys and options-page language controls | Two sections, Subtitles & AI and Learning settings; one interface-language choice also applies to the side panel |
 
+## New in 2.1.7
+
+- Dictionary-style word lookups with a lemma, UK/US IPA, bold parts of speech, senses, examples and collocations.
+- Subtitle examples are checked against the supplied transcript; rewritten and additional examples have distinct labels.
+- English-only lookups omit Chinese example translations. Saved meanings and exports retain pronunciation and examples.
+- These are AI-generated entries, not quoted external dictionary records. Unknown pronunciations are omitted.
+- Reload after updating in the same extension directory; no native-helper reinstall is needed.
+
 ## New in 2.1.6
 
 - A compact two-by-two selection menu: Word meaning, Concept, Collect, Note.

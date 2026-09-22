@@ -397,3 +397,41 @@ body:has(#contentArea) {
 }
 .lookup-preferences p { margin: 4px 0; }
 .lookup-preferences [role="status"] { font-size: 12px; color: var(--accent); }
+
+/* Dictionary entries keep pronunciation, grammar and examples distinct. */
+.lens-dictionary-dialog h2 {
+  margin: 4px 0 2px;
+  font-size: 27px;
+  line-height: 1.25;
+  letter-spacing: -0.5px;
+  overflow-wrap: anywhere;
+}
+.dictionary-selected-form {
+  margin: 6px 0 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.dictionary-entry { font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }
+.dictionary-ipa { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 9px 0 18px; color: #52665b; }
+.dictionary-pronunciation { display: inline-flex; align-items: baseline; gap: 6px; font-family: "Arial", sans-serif; font-size: 14px; }
+.dictionary-region { font-family: var(--font-body); font-size: 10px; font-weight: 600; letter-spacing: .7px; color: var(--text-muted); }
+.dictionary-sense { border-top: 1px solid var(--border); padding: 15px 0 5px; }
+.dictionary-sense-heading { display: flex; align-items: center; gap: 10px; }
+.dictionary-number { font-size: 10px; letter-spacing: 1px; color: var(--text-muted); }
+.dictionary-pos { font-weight: 700; color: var(--accent); font-size: 13px; }
+.dictionary-definition { margin: 7px 0 12px; line-height: 1.8; }
+.dictionary-example { margin: 10px 0; padding: 10px 12px; border-left: 2px solid #afc6b8; background: #f0f4ee; border-radius: 0 7px 7px 0; }
+.dictionary-example-label { font-size: 10px; color: var(--accent); letter-spacing: .4px; }
+.dictionary-example-text { margin: 5px 0 0; font-size: 13px; line-height: 1.7; }
+.dictionary-example-translation { margin: 4px 0 0; font-size: 12px; color: var(--text-muted); line-height: 1.7; }
+.dictionary-collocations { padding: 9px 0 15px; }
+.dictionary-collocations h3 { margin: 0 0 8px; font-size: 11px; font-weight: 500; color: var(--text-muted); }
+.dictionary-collocation { display: inline-block; border: 1px solid #dce5dc; padding: 3px 8px; border-radius: 6px; margin: 0 6px 6px 0; font-size: 12px; }
+.lens-dictionary-dialog .dictionary-save-word { display: block; margin-top: 10px; padding-top: 15px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text-muted); }
+.lens-dictionary-dialog .dictionary-save-word input { margin-bottom: 8px; font-size: 13px; }
+
+.lens-dialog-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-shrink: 0; }
+.lens-dialog-eyebrow { font-size: 11px; font-weight: 500; color: var(--text-muted); }
+.lens-dialog-header button { padding: 5px 8px; border-color: transparent; background: transparent; }
+.lens-dictionary-dialog h2 { padding-top: 0; }
+.lens-dictionary-dialog > * { flex-shrink: 0; }

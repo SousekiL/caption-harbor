@@ -184,7 +184,7 @@ async function lensHandle(message) {
       const selected = String(message.selected || "").slice(0, 4000);
       const context = String(message.context || "").slice(0, 52000);
       const rules = {
-        word: 'Define the selected word or phrase in its context, include its part of speech, one useful collocation and one short example. Keep it concise (at most 120 words). Return a JSON object {"lemma":"suggested base form, preserving whole phrases","explanation":"definition and example"}.',
+        word: 'Create a concise learner dictionary entry for the selected word or phrase, prioritizing the sense used in the transcript. Return JSON with this schema: {"lemma":"base form, preserving whole phrases","pronunciations":{"uk":"IPA of the lemma, e.g. /.../","us":"IPA of the lemma"},"senses":[{"partOfSpeech":"standard English abbreviation such as n., v., adj., adv. or phrase","definition":"concise contextual definition","examples":[{"text":"English example","translation":"Chinese gloss, or empty in English-only mode","source":"subtitle, adapted or generated"}]}],"collocations":["useful English collocation"]}. Include 1-2 relevant senses, each with a part of speech. Give one exact quote from the provided subtitles when useful and optionally one rewritten or new example, maximum 2 examples per sense. A subtitle example must be copied verbatim; never label rewritten content as a subtitle quote. Label rewritten examples adapted and newly created examples generated. Use IPA only when confident; leave unknown pronunciations blank, never invent them. IPA must describe the lemma displayed, not a different inflected form. For phrases whose pronunciation is uncertain, omit IPA. Keep definitions and examples short, no Markdown or HTML. Do not claim an external dictionary was consulted.',
         concept:
           'Explain the selected concept intuitively: its role in context, one concrete example and a common confusion. Keep it concise. Return a JSON object {"lemma":"original term","explanation":"explanation"}.',
         chat: "用中文回答用户问题。只能依据提供的字幕；没有依据就明确说明。以 [HH:MM:SS] 引用真实存在的时间点。",
@@ -235,6 +235,15 @@ async function lensHandle(message) {
             timestamp: typeof item.timestamp === "string" ? item.timestamp.slice(0, 20) : "" }));
         if (!questions.length) throw new Error("AI 未返回有效的题目，请重试");
         return { success: true, data: { questions } };
+      }
+      if (kind === "word") {
+        const dictionary = LensCore.dictionaryEntry(data, selected, context, explanationLanguage);
+        return { success: true, data: {
+          lemma: dictionary.lemma,
+          explanationLanguage,
+          dictionary,
+          explanation: LensCore.dictionaryText(dictionary),
+        } };
       }
       if (typeof data?.explanation !== "string" || !data.explanation.trim())
         throw new Error("AI 未返回有效解释，请重试");

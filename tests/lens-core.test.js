@@ -79,3 +79,23 @@ test("YouTube JSON3 keeps word-level timing offsets", () => {
     ],
   );
 });
+
+test("dictionary entries preserve IPA, senses and verified subtitle examples", () => {
+  const entry = core.dictionaryEntry({ lemma: "reinforce", pronunciations: { uk: "/ˌriːɪnˈfɔːs/", us: "/ˌriːɪnˈfɔːrs/" }, senses: [{ partOfSpeech: "v.", definition: "加强；巩固。", examples: [{ text: "Practice reinforces learning.", translation: "练习巩固学习。", source: "subtitle" }, { text: "Reading reinforces vocabulary.", source: "subtitle" }] }] }, "reinforced", "Practice reinforces learning.", "zh-CN");
+  assert.equal(entry.pronunciations.uk, "/ˌriːɪnˈfɔːs/");
+  assert.equal(entry.senses[0].partOfSpeech, "v.");
+  assert.equal(entry.senses[0].examples[0].source, "subtitle");
+  assert.equal(entry.senses[0].examples[1].source, "adapted");
+  assert.match(core.dictionaryText(entry), /原字幕/);
+  assert.match(core.dictionaryText(entry), /改写例句/);
+});
+test("dictionary normalization ignores malformed fields and hides translations in English mode", () => {
+  const entry = core.dictionaryEntry({ lemma: "run", pronunciations: { uk: null }, senses: [null, { definition: "Move quickly.", examples: [null, { text: "I run every day.", translation: "我每天跑步。", source: "generated" }] }], collocations: [null, "run fast"] }, "running", "", "en");
+  assert.equal(entry.senses.length, 1);
+  assert.equal(entry.senses[0].examples[0].translation, "");
+  assert.equal(entry.pronunciations.uk, "");
+  assert.doesNotMatch(core.dictionaryText(entry), /我每天/);
+  assert.match(core.dictionaryText(entry), /Additional example/);
+  assert.throws(() => core.dictionaryEntry({}, "word", "", "en"), /有效/);
+  assert.equal(core.dictionaryEntry({ explanation: "Legacy definition" }, "word", "", "en").senses[0].definition, "Legacy definition");
+});

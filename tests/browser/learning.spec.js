@@ -859,3 +859,40 @@ test("selection menu has four compact actions without wrapping at narrow widths"
   await page.screenshot({path:'dist/selection-menu-v2.1.6.png', animations:'disabled'});
   await page.locator('#explainTooltip').screenshot({path:'dist/selection-menu-detail-v2.1.6.png', animations:'disabled'});
 });
+
+test("dictionary lookup shows IPA, bold part of speech and labeled examples and saves them", async ({page}) => {
+  await setup(page);
+  await page.evaluate(() => {
+    requestAiCompletion = async () => ({text: JSON.stringify({lemma:'reinforce',pronunciations:{uk:'/ˌriːɪnˈfɔːs/',us:'/ˌriːɪnˈfɔːrs/'},senses:[{partOfSpeech:'v.',definition:'加强；巩固。让已有的知识或行为变得更牢固。',examples:[{text:'Reinforced learning helps us understand diminishing returns.',translation:'强化学习帮助我们理解边际收益递减。',source:'subtitle'},{text:'Regular practice reinforces what you have learned.',translation:'定期练习能巩固你已经学到的知识。',source:'adapted'}]}],collocations:['reinforce learning','reinforce a habit']})});
+  });
+  await selectWord(page);
+  await page.getByRole('button',{name:'词义',exact:true}).click();
+  const dialog=page.getByRole('dialog');
+  await expect(dialog.locator('.dictionary-ipa')).toContainText('/ˌriːɪnˈfɔːs/');
+  await expect(dialog.locator('strong.dictionary-pos')).toHaveText('v.');
+  await expect(dialog.locator('strong.dictionary-pos')).toHaveCSS('font-weight','700');
+  await expect(dialog.locator('.dictionary-example-label')).toHaveText(['原字幕','改写例句']);
+  await expect(dialog.locator('h2')).toHaveText('reinforce');
+  await page.screenshot({path:'dist/dictionary-v2.1.7.png',animations:'disabled'});
+  await dialog.screenshot({path:'dist/dictionary-card-v2.1.7.png',animations:'disabled'});
+  await page.getByRole('button',{name:'收藏并同步欧路'}).click();
+  await expect.poll(()=>page.evaluate(()=>__store.lens_words?.[0]?.meaning)).toContain('/ˌriːɪnˈfɔːs/');
+  expect(await page.evaluate(()=>__store.lens_words[0].meaning)).toContain('Regular practice');
+});
+
+test("English dictionary results stay English in a Chinese UI and safely render provider text", async ({page}) => {
+  await setup(page);
+  await page.evaluate(async () => {
+    await chrome.storage.local.set({lens_settings:{explanationLanguage:'en'}});
+    requestAiCompletion = async () => ({text: JSON.stringify({lemma:'reinforce',pronunciations:{},senses:[{partOfSpeech:'v.',definition:'Make something stronger. <img src=x onerror=alert(1)>',examples:[{text:'Practice reinforces learning.',translation:'这段译文不应显示',source:'generated'}]}]})});
+  });
+  await selectWord(page); await page.getByRole('button',{name:'词义',exact:true}).click();
+  const dialog=page.getByRole('dialog');
+  await expect(dialog.locator('.dictionary-example-label')).toHaveText('Additional example');
+  await expect(dialog.locator('.dictionary-example-translation')).toHaveCount(0);
+  await expect(dialog.locator('.dictionary-definition')).toContainText('<img src=x');
+  await expect(dialog.locator('img')).toHaveCount(0);
+  await expect(dialog.locator('.dictionary-ipa')).toHaveCount(0);
+  await page.setViewportSize({width:320,height:700});
+  expect(await dialog.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
+});

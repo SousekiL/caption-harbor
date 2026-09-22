@@ -189,8 +189,62 @@ var LensCore = (() => {
       partial: true,
     };
   }
+  function dictionaryEntry(data, selected, context, language) {
+    const text = (value, limit) => typeof value === "string" ? value.trim().slice(0, limit) : "";
+    const normalizeQuote = (value) => String(value || "").replace(/\s+/g, " ").trim();
+    const transcript = normalizeQuote(context);
+    const entry = {
+      lemma: text(data?.lemma, 160) || text(selected, 160),
+      explanationLanguage: language === "en" ? "en" : "zh-CN",
+      pronunciations: { uk: text(data?.pronunciations?.uk, 100), us: text(data?.pronunciations?.us, 100) },
+      senses: [],
+      collocations: (Array.isArray(data?.collocations) ? data.collocations : []).filter(x => typeof x === "string" && x.trim()).slice(0, 4).map(x => text(x, 160)),
+    };
+    const senses = Array.isArray(data?.senses) ? data.senses : [];
+    for (const sense of senses.slice(0, 3)) {
+      const definition = text(sense?.definition, 2000);
+      if (!definition) continue;
+      const examples = (Array.isArray(sense.examples) ? sense.examples : [])
+        .filter(example => typeof example?.text === "string" && example.text.trim())
+        .slice(0, 2).map(example => {
+          const quote = text(example.text, 1200);
+          const exact = transcript && transcript.includes(normalizeQuote(quote));
+          return {
+            text: quote,
+            translation: language === "en" ? "" : text(example.translation, 1200),
+            source: exact ? "subtitle" : example.source === "generated" ? "generated" : "adapted",
+          };
+        });
+      entry.senses.push({ partOfSpeech: text(sense.partOfSpeech, 50), definition, examples });
+    }
+    // Older models or saved responses may still return the plain definition.
+    if (!entry.senses.length && text(data?.explanation, 6000))
+      entry.senses.push({ partOfSpeech: "", definition: text(data.explanation, 6000), examples: [] });
+    if (!entry.senses.length) throw new Error("AI 未返回有效解释，请重试");
+    return entry;
+  }
+  function dictionaryText(entry) {
+    const english = entry.explanationLanguage === "en";
+    const labels = english
+      ? { subtitle: "From the subtitles", adapted: "Adapted example", generated: "Additional example" }
+      : { subtitle: "原字幕", adapted: "改写例句", generated: "补充例句" };
+    const lines = [entry.lemma];
+    for (const [region, ipa] of Object.entries(entry.pronunciations))
+      if (ipa) lines.push(`${region.toUpperCase()} ${ipa}`);
+    entry.senses.forEach((sense, index) => {
+      lines.push("", `${index + 1}. ${sense.partOfSpeech ? sense.partOfSpeech + " " : ""}${sense.definition}`);
+      for (const example of sense.examples) {
+        lines.push(`${labels[example.source]}: ${example.text}`);
+        if (example.translation) lines.push(example.translation);
+      }
+    });
+    if (entry.collocations.length) lines.push("", (english ? "Collocations: " : "常见搭配：") + entry.collocations.join(" · "));
+    return lines.join("\n");
+  }
   return {
     cleanWord,
+    dictionaryEntry,
+    dictionaryText,
     time,
     parseSubtitles,
     exportSubtitles,

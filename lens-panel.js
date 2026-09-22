@@ -65,11 +65,55 @@ function lensCaptureSelection(text, start) {
       .join(" "),
   };
 }
+function lensRenderDictionary(root, entry) {
+  root.replaceChildren();
+  root.className = "dictionary-entry";
+  root.dataset.userContent = "true";
+  const english = entry.explanationLanguage === "en";
+  // Definitions are user/provider content: never run interface translation on them.
+  const node = (tag, value, className) => {
+    const el = document.createElement(tag);
+    if (className) el.className = className;
+    el.textContent = value;
+    return el;
+  };
+  const pronunciation = node("div", "", "dictionary-ipa");
+  for (const [region, ipa] of Object.entries(entry.pronunciations)) {
+    if (!ipa) continue;
+    const item = node("span", "", "dictionary-pronunciation");
+    item.append(node("span", region.toUpperCase(), "dictionary-region"), node("span", ipa));
+    pronunciation.append(item);
+  }
+  if (pronunciation.childElementCount) root.append(pronunciation);
+  const sources = english
+    ? { subtitle: "From the subtitles", adapted: "Adapted example", generated: "Additional example" }
+    : { subtitle: "原字幕", adapted: "改写例句", generated: "补充例句" };
+  entry.senses.forEach((sense, index) => {
+    const section = node("section", "", "dictionary-sense");
+    const heading = node("div", "", "dictionary-sense-heading");
+    heading.append(node("span", String(index + 1).padStart(2, "0"), "dictionary-number"));
+    if (sense.partOfSpeech) heading.append(node("strong", sense.partOfSpeech, "dictionary-pos"));
+    section.append(heading, node("p", sense.definition, "dictionary-definition"));
+    for (const example of sense.examples) {
+      const block = node("div", "", "dictionary-example");
+      block.append(node("span", sources[example.source], "dictionary-example-label"), node("p", example.text, "dictionary-example-text"));
+      if (example.translation) block.append(node("p", example.translation, "dictionary-example-translation"));
+      section.append(block);
+    }
+    root.append(section);
+  });
+  if (entry.collocations.length) {
+    const section = node("section", "", "dictionary-collocations");
+    section.append(node("h3", english ? "Collocations" : "常见搭配"));
+    for (const phrase of entry.collocations) section.append(node("span", phrase, "dictionary-collocation"));
+    root.append(section);
+  }
+}
 async function lensExplain(kind) {
   const selected = lensOccurrence();
   if (!selected.original) return;
   const overlay = lensNode("div", undefined, "explain-modal-overlay");
-  const box = lensNode("div", undefined, "explain-modal lens-dialog");
+  const box = lensNode("div", undefined, "explain-modal lens-dialog" + (kind === "word" ? " lens-dictionary-dialog" : ""));
   box.setAttribute("role", "dialog");
   box.setAttribute("aria-modal", "true");
   box.setAttribute(
@@ -81,14 +125,20 @@ async function lensExplain(kind) {
   const selectedHeading = lensNode("h2");
   selectedHeading.textContent = selected.original;
   selectedHeading.dataset.userContent = "true";
-  box.append(close, selectedHeading);
+  const header = lensNode("div", undefined, "lens-dialog-header");
+  header.append(lensNode("span", kind === "word" ? "词义" : "概念", "lens-dialog-eyebrow"), close);
+  box.append(header, selectedHeading);
+  const selectedForm = lensNode("p", "", "dictionary-selected-form");
+  selectedForm.dataset.userContent = "true";
+  selectedForm.hidden = true;
+  box.append(selectedForm);
   const label = lensNode("label", "收藏词条（可编辑）");
   const word = lensNode("input");
   word.value = selected.original.slice(0, 160);
   word.maxLength = 160;
   label.append(word);
-  box.append(label);
-  const output = lensNode("p", "正在结合上下文解释…", "lens-pre");
+  label.className = "dictionary-save-word";
+  const output = lensNode("div", "正在结合上下文解释…", "lens-pre");
   output.dataset.userContent = "true";
   const info = lensNode("p", "");
   let meaning = "";
@@ -96,6 +146,7 @@ async function lensExplain(kind) {
   word.addEventListener("input", () => (edited = true));
   box.append(
     output,
+    label,
     lensButton("收藏并同步欧路", async () => {
       const result = await lensMessage({
         action: "lensSaveWord",
@@ -159,8 +210,16 @@ async function lensExplain(kind) {
       selected: selected.original,
       context: selected.context,
     });
+    if (!overlay.isConnected) return;
     meaning = result.data.explanation;
-    output.textContent = meaning;
+    if (kind === "word" && result.data.dictionary) {
+      lensRenderDictionary(output, result.data.dictionary);
+      selectedHeading.textContent = result.data.lemma;
+      if (selected.original.toLowerCase() !== result.data.lemma.toLowerCase()) {
+        selectedForm.textContent = (result.data.explanationLanguage === "en" ? "Selected: " : "所选词形：") + selected.original;
+        selectedForm.hidden = false;
+      }
+    } else output.textContent = meaning;
     if (!edited && typeof result.data.lemma === "string")
       word.value = LensCore.cleanWord(result.data.lemma).slice(0, 160);
   } catch (e) {
