@@ -29,8 +29,12 @@ async function harborAlternativeTranscript(videoId, config, mediaUrl) {
       error.audioTaskUnconfirmed = true;
       throw error;
     }
-    if (provider === "groq" && !config.groqApiKey)
-      throw new Error("请在“字幕与 AI”中填写 Groq API 密钥。");
+    let groqApiKey = typeof config.groqApiKey === "string" ? config.groqApiKey.trim() : "";
+    if (provider === "groq" && !groqApiKey) {
+      const credential = await harborAudioNative({ action: "getServiceKey", service: "groq" });
+      groqApiKey = typeof credential.key === "string" ? credential.key.trim() : "";
+      if (!groqApiKey) throw new Error("Groq key not configured. Enter it in Settings or configure the local environment.");
+    }
     const ready = await harborAudioNative({ action: "audioStatus" });
     if (!ready.ytdlp || !ready.ffmpeg)
       throw new Error(
@@ -55,7 +59,7 @@ async function harborAlternativeTranscript(videoId, config, mediaUrl) {
         ...(typeof mediaUrl === "string" && mediaUrl.startsWith("https://")
           ? { url: mediaUrl }
           : {}),
-        ...(provider === "groq" ? { apiKey: config.groqApiKey } : {}),
+        ...(provider === "groq" ? { apiKey: groqApiKey } : {}),
       });
     } catch (error) {
       // A lost native reply can occur after the job started. Keep the latch

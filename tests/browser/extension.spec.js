@@ -153,7 +153,7 @@ test("native host reads private environment configuration without persisting tok
   fs.mkdirSync(config, { mode: 0o700 });
   fs.writeFileSync(
     path.join(config, "secrets.env"),
-    "EUDIC_TOKEN='NIS fixture-native'\n",
+    "EUDIC_TOKEN='NIS fixture-native'\nGROQ_API_KEY=fixture-groq\nDEEPSEEK_API_KEY=fixture-deepseek\n",
     { mode: 0o600 },
   );
   const installed = spawnSync(
@@ -191,6 +191,14 @@ test("native host reads private environment configuration without persisting tok
     expect(manifest.allowed_origins).toContain(`chrome-extension://${id}/`);
     const page = await context.newPage();
     await page.goto(`chrome-extension://${id}/options.html`);
+    await page.locator("#checkLocalCredentials").click();
+    await expect(page.locator("#localCredentialsStatus")).toContainText("DeepSeek: 已就绪");
+    await expect(page.locator("#localCredentialsStatus")).toContainText("Groq: 已就绪");
+    const configuration = await page.evaluate(() => chrome.runtime.sendMessage({action:"checkConfig"}));
+    expect(configuration.hasAiKey).toBe(true);
+    await expect(page.locator("#aiApiKey")).toHaveValue("");
+    await expect(page.locator("#groqApiKey")).toHaveValue("");
+    expect(await page.evaluate(async () => JSON.stringify(await chrome.storage.local.get(null)))).not.toMatch(/fixture-(deepseek|groq)/);
     await page.locator("#harbor-environment").click();
     await expect(page.locator("#harbor-environment-status")).toContainText(
       "已找到本机",

@@ -63,6 +63,21 @@
     originalAudio: () => $("harbor-original").checked,
     requiredLanguage: () => $("requiredTranscriptLanguage").value,
   };
+  $("checkLocalCredentials").addEventListener("click", async () => {
+    const button = $("checkLocalCredentials");
+    button.disabled = true;
+    try {
+      const status = await harborAudioNative({ action: "credentialsStatus" });
+      if (!status.configured || typeof status.configured !== "object") throw new Error("Update the local helper to check API keys.");
+      $("localCredentialsStatus").textContent = ["deepseek", "groq"].map(service =>
+        `${service === "deepseek" ? "DeepSeek" : "Groq"}: ${HarborUI.text(status.configured[service] ? "Ready" : "Not configured")}`
+      ).join(" · ");
+    } catch (error) {
+      $("localCredentialsStatus").textContent = HarborUI.text(error.message);
+    } finally {
+      button.disabled = false;
+    }
+  });
   $("checkAudioSetup").addEventListener("click", async () => {
     const button = $("checkAudioSetup");
     button.disabled = true;

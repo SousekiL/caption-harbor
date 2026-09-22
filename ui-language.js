@@ -30,6 +30,12 @@ var HarborUI = (() => {
     "Runs on this Mac using CPU/GPU and memory. May increase heat and battery use; no transcription API fee.":
       "在本机运行，会占用 CPU/GPU 和内存，可能增加发热与耗电；不收取转录接口费。",
     "Check local components": "检查本机组件",
+    "Check local API keys": "检查本机 API 密钥",
+    "Not configured": "未配置",
+    "Update the local helper to check API keys.": "请更新本机助手后检查密钥。",
+    "Requested local credential is unavailable. Check the private environment file.": "未能读取对应密钥，请检查本机私有环境配置。",
+    "Groq key not configured. Enter it in Settings or configure the local environment.": "尚未配置 Groq 密钥，请填写设置或配置本机环境。",
+    "Leave the DeepSeek or Groq key field empty to read it from the local helper. A manually entered key takes priority. Environment keys are not copied into this browser.": "DeepSeek 或 Groq 密钥栏留空时，自动从本机助手读取；手动填写的密钥优先。本机环境中的密钥不会复制到浏览器存储。",
     "Local setup": "本机配置",
     "Install yt-dlp and FFmpeg for Groq; local transcription also needs whisper.cpp and a downloaded model.":
       "Groq 需要安装 yt-dlp 和 FFmpeg；本地转录还需要 whisper.cpp 和下载模型。",

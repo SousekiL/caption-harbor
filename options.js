@@ -69,8 +69,8 @@ const YTD_OPTIONS = (() => {
         `Cleared ${count} cached digest${count === 1 ? "" : "s"}.`,
       notesDeleted: "Deleted all saved notes.",
       resetConfirm:
-        "Delete API keys, cached digests, translations, and saved notes from this Chrome profile?",
-      allDataDeleted: "All Caption Harbor data was deleted.",
+        "Delete API keys, cached digests, translations, and saved notes from this Chrome profile? Local environment keys will remain.",
+      allDataDeleted: "Browser data was deleted. Local environment keys were kept.",
       settingsLoadFailed:
         "Could not load saved settings. You can still preview this page.",
     },
@@ -135,8 +135,8 @@ const YTD_OPTIONS = (() => {
       clearedDigests: ({ count }) => `已清除 ${count} 条缓存摘要。`,
       notesDeleted: "已删除全部已保存的笔记。",
       resetConfirm:
-        "要从当前 Chrome 个人资料中删除 API 密钥、缓存摘要、翻译和已保存的笔记吗？",
-      allDataDeleted: "已删除全部 Caption Harbor 数据。",
+        "要从当前 Chrome 个人资料中删除 API 密钥、缓存摘要、翻译和已保存的笔记吗？本机环境密钥会保留。",
+      allDataDeleted: "已删除浏览器中的 Caption Harbor 数据。本机环境密钥已保留。",
       settingsLoadFailed: "无法加载已保存的设置，但你仍可预览此页面。",
     },
   };

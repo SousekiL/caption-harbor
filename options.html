@@ -47,6 +47,9 @@
 
       <form id="settingsForm" class="service-module card">
         <h2>Subtitles &amp; AI</h2>
+        <p class="help">Leave the DeepSeek or Groq key field empty to read it from the local helper. A manually entered key takes priority. Environment keys are not copied into this browser.</p>
+        <button id="checkLocalCredentials" type="button">Check local API keys</button>
+        <p id="localCredentialsStatus" class="help" role="status"></p>
         <div class="services-grid">
           <section class="service-block">
             <h3>Transcript</h3>

@@ -38,7 +38,15 @@ chrome.storage.local
 
 async function getSettings() {
   const stored = await chrome.storage.local.get(YTD_SETTINGS.STORAGE_KEY);
-  return YTD_SETTINGS.normalize(stored[YTD_SETTINGS.STORAGE_KEY]);
+  const settings = { ...YTD_SETTINGS.normalize(stored[YTD_SETTINGS.STORAGE_KEY]) };
+  if (!settings.aiApiKey) {
+    try {
+      const result = await chrome.runtime.sendNativeMessage("com.caption_harbor.environment", { action: "getServiceKey", service: "deepseek" });
+      if (result?.success && typeof result.key === "string") settings.aiApiKey = result.key.trim();
+    } catch { /* A missing helper leaves manual-key setup available. */ }
+  }
+  // The environment value exists only in this request object, never storage.
+  return settings;
 }
 
 let noteWriteQueue = Promise.resolve();

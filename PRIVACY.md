@@ -22,7 +22,7 @@ Uninstalling the extension may remove local data. Clearing local words leaves Eu
 
 ## Optional environment bridge
 
-The `nativeMessaging` permission permits communication with `com.caption_harbor.environment`. In environment mode, the Eudic token comes from the native process environment or an owner-only `~/.config/caption-harbor/secrets.env` file. It is not persisted in Chrome storage. Only the background Eudic request uses it; settings receive a configured/not-configured status rather than the token. Selecting this mode clears a previous manually stored Eudic token when settings are saved. Supadata and DeepSeek settings are unchanged. The helper accepts only the explicitly registered extension origin; fixed-purpose audio operations are described below.
+The `nativeMessaging` permission permits communication with `com.caption_harbor.environment`. In environment mode, the Eudic token comes from the native process environment or an owner-only `~/.config/caption-harbor/secrets.env` file. It is not persisted in Chrome storage. Only the background Eudic request uses it; settings receive a configured/not-configured status rather than the token. Selecting this mode clears a previous manually stored Eudic token when settings are saved. Supadata settings are unchanged. The helper accepts only the explicitly registered extension origin; fixed-purpose audio operations are described below.
 
 ## Version 2.1 caption and audio providers
 
@@ -31,3 +31,9 @@ The extension first reads captions available to the current YouTube page. It may
 The native helper now supports fixed-purpose audio jobs in addition to Eudic credentials. With local Whisper, audio is processed on this computer. With Groq, the local worker sends audio chunks and the Groq key to `api.groq.com`; keys pass through process memory/stdin and are not persisted in job files. Supadata remains an optional cloud provider. AI interpretation and translation still use DeepSeek independently.
 
 Temporary audio, caption files and job status live under the private application directory. Old jobs are cleaned when a new job starts after 24 hours. Models are downloaded separately and retained for reuse. Interface-language preferences are stored locally and shared between Settings and the panel; they do not modify the selected caption-content language.
+
+## Local Groq and DeepSeek credentials (2.1.9)
+
+When their settings fields are blank, the helper reads only the requested `GROQ_API_KEY` or `DEEPSEEK_API_KEY` from its process environment or the same owner-only private file. A manually saved browser key takes priority. The trusted requester uses the selected key in request memory; environment keys are not written into browser storage or audio job files. The status UI receives only configured flags, never values.
+
+Uninstalling/resetting the extension does not delete the independent private file. Updating the helper preserves it. The file is plaintext protected by filesystem permissions, not project encryption. Only registered extension origins can access the helper, and arbitrary variable names are rejected.

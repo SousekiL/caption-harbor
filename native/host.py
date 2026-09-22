@@ -8,11 +8,14 @@ import struct
 import sys
 
 MAX_REQUEST = 4096
+SERVICE_KEYS = {"groq": "GROQ_API_KEY", "deepseek": "DEEPSEEK_API_KEY"}
 
 
-def read_token(env_file):
-    """Use the host process environment first, then load one dotenv variable."""
-    token = os.environ.get('EUDIC_TOKEN', '').strip()
+def read_secret(env_file, name):
+    """Read one allowlisted credential; never evaluate or expose other variables."""
+    if name not in ('EUDIC_TOKEN', 'GROQ_API_KEY', 'DEEPSEEK_API_KEY'):
+        raise ValueError('Unsupported credential.')
+    token = os.environ.get(name, '').strip()
     if not token:
         path = Path(env_file)
         info = path.lstat()
@@ -22,21 +25,38 @@ def read_token(env_file):
             raise ValueError('Environment file is too large.')
         for line in path.read_text(encoding='utf-8').splitlines():
             key, sep, value = line.removeprefix('export ').partition('=')
-            if sep and key.strip() == 'EUDIC_TOKEN':
+            if sep and key.strip() == name:
                 value = value.strip()
                 if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
                     value = value[1:-1]
                 token = value.strip()
         # No shell evaluation, interpolation, subprocesses, or generic env lookup.
         if token:
-            os.environ['EUDIC_TOKEN'] = token
+            os.environ[name] = token
     if not token or len(token) > 4096 or any(c in token for c in '\r\n\x00'):
-        raise ValueError('EUDIC_TOKEN is missing or invalid.')
+        raise ValueError('Requested credential is missing or invalid.')
     return token
+
+
+def read_token(env_file):
+    return read_secret(env_file, 'EUDIC_TOKEN')
 
 
 def handle(message, config):
     action = message.get('action') if isinstance(message, dict) else None
+    if action == 'credentialsStatus':
+        configured = {}
+        for service, name in SERVICE_KEYS.items():
+            try:
+                configured[service] = bool(read_secret(config['env_file'], name))
+            except (OSError, ValueError):
+                configured[service] = False
+        return {'success': True, 'configured': configured}
+    if action == 'getServiceKey':
+        service = message.get('service')
+        if not isinstance(service, str) or service not in SERVICE_KEYS:
+            return {'success': False, 'error': 'Unsupported credential service.'}
+        return {'success': True, 'key': read_secret(config['env_file'], SERVICE_KEYS[service])}
     if action in ('audioStatus', 'audioStart', 'audioPoll', 'audioCancel', 'audioResolve'):
         import audio_worker
         return audio_worker.handle(message, Path(config['env_file']).parent)
@@ -66,7 +86,7 @@ def main():
         result = handle(json.loads(raw), config)
     except Exception:
         # Do not include exception data, request content, paths or credentials.
-        result = {'success': False, 'error': 'Local EUDIC_TOKEN is unavailable. Check the private environment file.'}
+        result = {'success': False, 'error': 'Requested local credential is unavailable. Check the private environment file.'}
     data = json.dumps(result).encode('utf-8')
     sys.stdout.buffer.write(struct.pack('=I', len(data)) + data)
     sys.stdout.buffer.flush()

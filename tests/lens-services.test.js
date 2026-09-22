@@ -802,3 +802,18 @@ test("lookup language is independent of interface language for words and concept
     }
   }
 });
+
+test('Groq reads its own private key into request memory and never stores it', async () => {
+  const requests=[];
+  const h=harness({},undefined,async(host,request)=>{
+    requests.push(request);
+    if(request.action==='getServiceKey') {assert.equal(request.service,'groq');return {success:true,key:'fixture-env-groq'};}
+    if(request.action==='audioStatus')return {success:true,ytdlp:true,ffmpeg:true};
+    if(request.action==='audioStart')return {success:true,jobId:'fixture-job'};
+    if(request.action==='audioPoll')return {success:true,status:'working'};
+  });
+  const result=await h.context.harborAlternativeTranscript('video123',{transcriptionProvider:'groq'},'https://www.youtube.com/watch?v=video123');
+  assert.equal(result.pending,true);
+  assert.equal(requests.find(r=>r.action==='audioStart').apiKey,'fixture-env-groq');
+  assert.ok(!JSON.stringify(h.db).includes('fixture-env-groq'));
+});

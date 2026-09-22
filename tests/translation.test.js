@@ -985,3 +985,22 @@ test("Apple audio URL resolution discards results after episode navigation", asy
   assert.equal(result.success, false);
   assert.equal(result.mediaUrl, undefined);
 });
+
+test('DeepSeek uses the private environment only when manual key is blank and never persists it', async () => {
+  const background=loadBackgroundHelpers({settings:{aiApiKey:'',supadataApiKey:''}});
+  let reads=0;
+  background.sandbox.chrome.runtime.sendNativeMessage=async(name,request)=>{
+    reads++;
+    assert.equal(name,'com.caption_harbor.environment');
+    assert.equal(request.action,'getServiceKey');
+    assert.equal(request.service,'deepseek');
+    return {success:true,key:'fixture-env-ai'};
+  };
+  const resolved=await background.sandbox.getSettings();
+  assert.equal(resolved.aiApiKey,'fixture-env-ai');
+  const stored=await background.sandbox.chrome.storage.local.get('ytd_settings');
+  assert.equal(stored.ytd_settings.aiApiKey,'');
+  await background.sandbox.chrome.storage.local.set({ytd_settings:{aiApiKey:'fixture-manual-ai'}});
+  assert.equal((await background.sandbox.getSettings()).aiApiKey,'fixture-manual-ai');
+  assert.equal(reads,1);
+});

@@ -32,6 +32,14 @@ This project is installed locally from GitHub, not through the Chrome Web Store.
 | Playback following | Transcript highlighting and scrolling | Bound-video playback reads; video seeks keep following, while manual caption scrolling pauses it |
 | Settings | Provider keys and options-page language controls | Two sections, Subtitles & AI and Learning settings; one interface-language choice also applies to the side panel |
 
+## New in 2.1.9
+
+- Blank DeepSeek/Groq key fields now resolve `DEEPSEEK_API_KEY` / `GROQ_API_KEY` through the native helper. Explicit manual keys take priority.
+- Keep them in the owner-only `~/.config/caption-harbor/secrets.env` (0600, parent 0700), alongside Eudic. This is a private plaintext configuration, not an encrypted keychain.
+- The new local-key status check returns only configured flags. Retrieved secrets are used in request memory and never copied into browser storage.
+- Extension reinstall/reset retains this separate private file. Register a changed extension ID with the helper; no key re-entry is required.
+- Update the native helper to use this feature. Manual credentials remain available without the helper.
+
 ## New in 2.1.8
 
 - Closing a word/concept dialog also clears its text selection and hides the selection menu, preventing stale mouseup events from reopening it.

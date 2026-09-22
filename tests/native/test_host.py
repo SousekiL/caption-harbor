@@ -59,6 +59,22 @@ class HostTest(unittest.TestCase):
         with patch.dict(sys.modules, {'audio_worker':worker}):
             self.assertEqual(host.handle(message,self.config), {'success':True,'url':message['url']})
 
+    def test_service_keys_are_scoped_and_status_never_returns_values(self):
+        self.env.write_text("EUDIC_TOKEN='NIS fixture-token'\nGROQ_API_KEY=fixture-groq\nDEEPSEEK_API_KEY=fixture-deepseek\n")
+        status=host.handle({'action':'credentialsStatus'},self.config)
+        self.assertTrue(status['success'])
+        self.assertEqual(status['configured'],{'groq':True,'deepseek':True})
+        self.assertNotIn('fixture',json.dumps(status))
+        self.assertEqual(host.handle({'action':'getServiceKey','service':'groq'},self.config)['key'],'fixture-groq')
+        self.assertEqual(host.handle({'action':'getServiceKey','service':'deepseek'},self.config)['key'],'fixture-deepseek')
+        self.assertFalse(host.handle({'action':'getServiceKey','service':'PATH'},self.config)['success'])
+        self.assertFalse(host.handle({'action':'getServiceKey','service':'EUDIC_TOKEN'},self.config)['success'])
+
+    def test_service_keys_reject_unsafe_permissions(self):
+        self.env.write_text('GROQ_API_KEY=fixture-groq\n')
+        self.env.chmod(0o644)
+        with self.assertRaises(ValueError):host.handle({'action':'getServiceKey','service':'groq'},self.config)
+
     def test_protocol_and_origin_validation(self):
         (self.folder/'host.py').write_text((ROOT/'native'/'host.py').read_text())
         (self.folder/'bridge.json').write_text(json.dumps(self.config))

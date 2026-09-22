@@ -32,6 +32,14 @@
 | 跟随播放 | 字幕高亮和滚动 | 绑定当前视频取播放位置；视频跳转保持同步，手动滚动字幕才暂停 |
 | 设置 | 密钥和设置页语言控制 | 「字幕与 AI」「学习设置」两部分；界面语言统一控制设置页和视频侧栏 |
 
+## 2.1.9 更新
+
+- DeepSeek／Groq 密钥栏留空时，通过本机助手读取私有环境配置；手动填写的密钥优先。
+- 使用 `~/.config/caption-harbor/secrets.env` 中的 `DEEPSEEK_API_KEY`、`GROQ_API_KEY`，与现有欧路配置共存。文件须为当前用户所有且权限 0600，父目录权限 0700；这是本机明文配置，不是加密密钥库。
+- 新增“检查本机 API 密钥”，只显示各服务是否已配置，不展示密钥或复制到浏览器存储。
+- 重装扩展／重置浏览器数据不会删除这个独立的私有文件。若扩展 ID 变化，只需重新登记助手；无需重新输入密钥。
+- 使用本机密钥需要更新助手；缺少助手或未配置时仍可在设置中手动填写。
+
 ## 2.1.8 更新
 
 - 关闭词义／概念解释后，同时收起划词菜单并清除文字选区，避免鼠标松开时再次弹出。
@@ -126,7 +134,7 @@
 
 **[DeepSeek API key](https://platform.deepseek.com/api_keys) 独立配置**，用于翻译、概览、解释、问答和 AI 笔记处理。当前集成为 DeepSeek Flash；只读字幕不需要它。
 
-密钥直接填在设置页。各服务的账号、额度和账单相互独立；开启云端转录前查看 [Supadata 价格](https://supadata.ai/pricing)和 [Groq 转录说明](https://console.groq.com/docs/speech-to-text)。
+密钥可直接填在设置页；DeepSeek／Groq 也可留空并使用本机私有环境配置。各服务的账号、额度和账单相互独立；开启云端转录前查看 [Supadata 价格](https://supadata.ai/pricing)和 [Groq 转录说明](https://console.groq.com/docs/speech-to-text)。
 
 ## 配置本地转录
 
