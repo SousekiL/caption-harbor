@@ -25,11 +25,15 @@ fail() {
 # Optional entries are included only when present; manifest references are
 # validated separately, so a referenced-but-missing file still fails.
 public_allowlist=(
+  "START-HERE.zh-CN.md"
   "docs/images/reader.png"
   "docs/images/reader-en.png"
   "docs/images/feature-overview.png"
+  "docs/images/bilibili-transcript.png"
   "icons/icon.svg"
   "ui-language.js"
+  "sites.js"
+  "page-media.js"
   "browser-captions.js"
   "audio-transcription.js"
   "service-settings.js"
@@ -78,6 +82,7 @@ public_allowlist=(
 )
 
 required_public_files=(
+  "START-HERE.zh-CN.md"
   "manifest.json"
   "background.js"
   "settings.js"

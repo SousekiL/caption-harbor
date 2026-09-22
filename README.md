@@ -17,6 +17,8 @@ This project is installed locally from GitHub, not through the Chrome Web Store.
 
 ![Caption Harbor running beside a YouTube video, with transcript selection and learning actions](docs/images/feature-overview.png)
 
+![Caption Harbor reading an English audio transcript beside a Bilibili video](docs/images/bilibili-transcript.png)
+
 ## What comes from YouTube Digest, and what changed?
 
 | Area | Original YouTube Digest foundation | Caption Harbor additions and changes |
@@ -29,6 +31,17 @@ This project is installed locally from GitHub, not through the Chrome Web Store.
 | Learning history | Notes and recent transcript caches | Video history, saved playback positions and vocabulary/note counts |
 | Playback following | Transcript highlighting and scrolling | Bound-video playback reads; video seeks keep following, while manual caption scrolling pauses it |
 | Settings | Provider keys and options-page language controls | Two sections, Subtitles & AI and Learning settings; one interface-language choice also applies to the side panel |
+
+## Fixed in 2.1.5
+
+- Keep analysis, transcript caches, note filters, playback actions, and learning progress bound to the intended video during navigation.
+- Preserve new question drafts and ignore replies to dismissed explanation dialogs.
+- Repair Apple Podcasts audio resolution, native job startup/timeout handling, and segmented audio timestamps.
+- Preserve uncertain native requests to prevent automatic duplicate transcription submissions.
+- Clear all settings forms on data reset so a later save cannot restore deleted credentials.
+- Use the currently documented DeepSeek `deepseek-flash` model identifier.
+
+Update files in the same unpacked-extension directory, reload the extension, and refresh video pages. **Re-run the native-helper installer for your browser if you already installed it**; helper files are copied separately. Existing Whisper models do not need to be downloaded again.
 
 ## New in 2.1.4
 
@@ -90,7 +103,7 @@ Enable **Automatically transcribe when captions are unavailable** if you also wa
 | Groq | [Groq API key](https://console.groq.com/keys), local yt-dlp + FFmpeg helper | Local audio preparation, then paid cloud transcription |
 | Local Whisper | Local helper, whisper.cpp and a downloaded model | This computer's CPU/GPU and RAM; no transcription API fee |
 
-A **[DeepSeek API key](https://platform.deepseek.com/api_keys)** is separate: it powers translation, overviews, explanations, questions and AI note processing. The current AI integration uses DeepSeek V4 Flash. Reading captions alone does not require it.
+A **[DeepSeek API key](https://platform.deepseek.com/api_keys)** is separate: it powers translation, overviews, explanations, questions and AI note processing. The current AI integration uses DeepSeek Flash. Reading captions alone does not require it.
 
 Enter keys only in Settings. Supadata, Groq and DeepSeek have separate accounts and usage limits. Check [Supadata pricing](https://supadata.ai/pricing) and [Groq speech-to-text documentation](https://console.groq.com/docs/speech-to-text) before enabling cloud transcription.
 

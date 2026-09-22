@@ -1,8 +1,8 @@
 {
   "name": "caption-harbor",
-  "version": "2.1.4",
+  "version": "2.1.5",
   "private": true,
-  "description": "Learn from YouTube with bilingual captions, audio transcription, Eudic vocabulary, AI questions, and notes.",
+  "description": "Bilingual captions, audio transcription, vocabulary, AI questions, and notes for YouTube, Bilibili, and Apple Podcasts.",
   "license": "MIT",
   "scripts": {
     "test": "node --test tests/*.test.js",

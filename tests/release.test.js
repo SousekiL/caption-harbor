@@ -17,7 +17,7 @@ test("manifest uses minimized install-time permissions", () => {
   assert.ok(!manifest.permissions.includes("activeTab"));
   assert.ok(manifest.host_permissions.includes("https://api.deepseek.com/*"));
   assert.equal(Object.hasOwn(manifest, "optional_host_permissions"), false);
-  assert.equal(manifest.version, "2.1.4");
+  assert.equal(manifest.version, "2.1.5");
 });
 
 test("release copy describes the fork and online data flow", () => {
@@ -125,7 +125,7 @@ test("runtime has no source-file credential dependency or retired model", () => 
   assert.doesNotMatch(runtime, /\bCONFIG\./);
   assert.doesNotMatch(runtime, /importScripts\(["']config\.js/);
   assert.doesNotMatch(runtime, /\bdeepseek-chat\b/);
-  assert.match(runtime, /deepseek-v4-flash/);
+  assert.match(runtime, /deepseek-flash/);
 });
 
 test("background reconciles side-panel state after navigation commits", () => {

@@ -13,7 +13,7 @@
   <label>新生词本名称 <input id="harbor-new" placeholder="YouTube"></label><button id="harbor-create" type="button">新建生词本</button>
   <button id="harbor-save" type="button">保存学习设置</button>
   <details id="audioTaskControls" class="audio-task-controls"><summary>转录任务</summary><p>超时不代表服务端取消。请先核对服务商任务与额度；重置后重新请求可能产生额外费用。</p>
-  <label>需要重置的视频 ID <input id="harbor-video-id" placeholder="YouTube 链接 v= 后面的 ID"></label>
+  <label>需要重置的视频 ID <input id="harbor-video-id" placeholder="如 Nhmyrh9I_bA、bili_BV…_1 或 apple_…_…"></label>
   <button id="harbor-reset" type="button">重置该视频转录任务</button></details><p id="harbor-status" role="status"></p>`;
   (
     document.getElementById("learningContent") ||
@@ -43,6 +43,17 @@
       new Option(config.categoryName || config.categoryId, config.categoryId),
     );
   $("category").value = config.categoryId || "0";
+  window.addEventListener("harbor-data-reset", () => {
+    $("token").value = "";
+    $("source").value = "environment";
+    $("category").replaceChildren(new Option("默认生词本", "0"));
+    $("new").value = "";
+    $("video-id").value = "";
+    $("status").textContent = "";
+    $("environment-status").textContent = "";
+    updateSource();
+    HarborUI?.localize();
+  });
   async function save() {
     await chrome.storage.local.set({
       lens_settings: {
@@ -116,7 +127,7 @@
   });
   run("reset", async () => {
     const id = $("video-id").value.trim();
-    YTD_SETTINGS.canonicalYouTubeUrl(id);
+    HarborSites.mediaUrl(id);
     if (
       !confirm(
         HarborUI.text("确认已核对服务端任务？重置后重新请求可能再次收费。"),

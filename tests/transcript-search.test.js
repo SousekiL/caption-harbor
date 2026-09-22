@@ -45,7 +45,7 @@ function loadSearchHelper() {
     chrome: {
       runtime: { onMessage: listeners, sendMessage: () => Promise.resolve({}) },
       windows: { getCurrent: () => Promise.resolve({ id: 1 }) },
-      tabs: { onUpdated: listeners, onActivated: listeners },
+      tabs: { onUpdated: listeners, onActivated: listeners, onRemoved: listeners },
     },
     YTD_SETTINGS: {},
   };

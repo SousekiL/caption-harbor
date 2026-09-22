@@ -116,7 +116,7 @@ async function lensHandle(message) {
         if (!word || word.length > 160)
           throw new Error("请选择不超过 160 字符的单词或短语");
         const videoId = String(message.videoId || "");
-        YTD_SETTINGS.canonicalYouTubeUrl(videoId);
+        HarborSites.mediaUrl(videoId);
         const rows =
           (await chrome.storage.local.get("lens_words")).lens_words || [];
         let row = rows.find((x) => x.word.toLowerCase() === word.toLowerCase());
@@ -163,7 +163,7 @@ async function lensHandle(message) {
       });
     case "lensHistory":
       return lensSerial(async () => {
-        YTD_SETTINGS.canonicalYouTubeUrl(message.videoId);
+        HarborSites.mediaUrl(message.videoId);
         const rows =
           (await chrome.storage.local.get("lens_history")).lens_history || {};
         rows[message.videoId] = {
@@ -216,21 +216,30 @@ async function lensHandle(message) {
       });
       if (kind === "chat") return { success: true, text: result.text };
       const data = parseLooseJson(result.text);
-      if (
-        kind === "quiz" &&
-        (!Array.isArray(data.questions) || !data.questions.length)
-      )
-        throw new Error("AI 未返回有效的题目，请重试");
-      if (kind !== "quiz" && typeof data.explanation !== "string")
+      if (kind === "quiz") {
+        const questions = (Array.isArray(data?.questions) ? data.questions : [])
+          .filter((item) => item && typeof item.question === "string" && item.question.trim() &&
+            typeof item.answer === "string" && item.answer.trim())
+          .slice(0, 5)
+          .map((item) => ({ question: item.question.trim().slice(0, 4000),
+            answer: item.answer.trim().slice(0, 12000),
+            timestamp: typeof item.timestamp === "string" ? item.timestamp.slice(0, 20) : "" }));
+        if (!questions.length) throw new Error("AI 未返回有效的题目，请重试");
+        return { success: true, data: { questions } };
+      }
+      if (typeof data?.explanation !== "string" || !data.explanation.trim())
         throw new Error("AI 未返回有效解释，请重试");
-      return { success: true, data };
+      return { success: true, data: {
+        explanation: data.explanation.trim().slice(0, 16000),
+        lemma: typeof data.lemma === "string" ? data.lemma.slice(0, 160) : selected.slice(0, 160),
+      } };
     }
     default:
       throw new Error("Unknown learning action");
   }
 }
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
-  if (!String(message.action || "").startsWith("lens")) return false;
+  if (!String(message?.action || "").startsWith("lens")) return false;
   if (
     sender.id !== chrome.runtime.id ||
     !sender.url?.startsWith(chrome.runtime.getURL(""))

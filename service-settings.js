@@ -17,6 +17,10 @@
   };
   const $ = (id) => document.getElementById(id);
   $("harbor-auto").checked = config.lens_settings?.autoTranscribe ?? true;
+  $("harbor-original").checked =
+    config.lens_settings?.preferOriginalAudio ?? false;
+  $("requiredTranscriptLanguage").value =
+    config.lens_settings?.requiredTranscriptLanguage ?? "auto";
   $("transcriptionProvider").value = values.transcriptionProvider;
   $("groqApiKey").value = values.groqApiKey;
   $("groqModel").value = values.groqModel;
@@ -24,6 +28,8 @@
   const render = () => {
     const enabled = $("harbor-auto").checked;
     const provider = $("transcriptionProvider").value;
+    $("harbor-original-line").hidden = !enabled;
+    $("harbor-original-help").hidden = !enabled;
     $("transcriptionChoices").hidden = !enabled;
     $("supadataConfiguration").hidden = enabled && provider !== "supadata";
     $("groqConfiguration").hidden = !enabled || provider !== "groq";
@@ -35,6 +41,17 @@
   $("harbor-auto").addEventListener("change", render);
   $("transcriptionProvider").addEventListener("change", render);
   render();
+  window.addEventListener("harbor-data-reset", () => {
+    $("harbor-auto").checked = true;
+    $("harbor-original").checked = false;
+    $("requiredTranscriptLanguage").value = "auto";
+    $("transcriptionProvider").value = "supadata";
+    $("groqApiKey").value = "";
+    $("groqModel").value = "whisper-large-v3-turbo";
+    $("localWhisperModel").value = "small.en";
+    $("audioSetupStatus").textContent = "";
+    render();
+  });
   window.HarborServiceSettings = {
     read: () => ({
       transcriptionProvider: $("transcriptionProvider").value,
@@ -43,6 +60,8 @@
       localModel: $("localWhisperModel").value,
     }),
     enabled: () => $("harbor-auto").checked,
+    originalAudio: () => $("harbor-original").checked,
+    requiredLanguage: () => $("requiredTranscriptLanguage").value,
   };
   $("checkAudioSetup").addEventListener("click", async () => {
     const button = $("checkAudioSetup");

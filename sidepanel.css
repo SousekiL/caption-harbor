@@ -791,6 +791,24 @@ body {
   line-height: 1.55;
 }
 
+/* Text is selectable/word-clickable; blank space and timestamps seek. */
+.transcript-text,
+.transcript-copy {
+  cursor: text;
+}
+
+.transcript-source-badge {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: var(--accent);
+  background: var(--surface-raised);
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
+  white-space: nowrap;
+}
+
 .transcript-copy {
   min-width: 0;
   flex: 1;
@@ -1085,13 +1103,13 @@ body {
   padding: 40px 24px;
 }
 
-/* A soft terracotta tile with a CSS play mark, matching the brand. */
+/* Brand-green tile with a CSS play mark, matching the extension icon. */
 .welcome-icon {
   width: 84px;
   height: 84px;
   border-radius: var(--r-xl);
-  background: linear-gradient(145deg, #d2735a, #bd5740);
-  box-shadow: 0 12px 30px rgba(200, 103, 79, 0.35);
+  background: var(--accent);
+  box-shadow: 0 12px 30px rgba(61, 117, 93, 0.35);
   display: flex;
   align-items: center;
   justify-content: center;

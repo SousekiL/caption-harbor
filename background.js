@@ -14,8 +14,11 @@
 // Import safe defaults and validation helpers. Secret keys live in
 // chrome.storage.local and are never part of the extension source.
 importScripts("settings.js");
+importScripts("sites.js");
 importScripts("lens-core.js");
 importScripts("lens-background.js");
+importScripts("page-media.js");
+importScripts("audio-transcription.js");
 
 const DEBUG = false;
 const AI_PROVIDER_IDLE_TIMEOUT_MS = 50_000;
@@ -36,6 +39,14 @@ chrome.storage.local
 async function getSettings() {
   const stored = await chrome.storage.local.get(YTD_SETTINGS.STORAGE_KEY);
   return YTD_SETTINGS.normalize(stored[YTD_SETTINGS.STORAGE_KEY]);
+}
+
+let noteWriteQueue = Promise.resolve();
+let noteIdSequence = 0;
+function serialNoteWrite(task) {
+  const pending = noteWriteQueue.then(task, task);
+  noteWriteQueue = pending.catch(() => {});
+  return pending;
 }
 
 const promptFileCache = new Map();
@@ -236,7 +247,7 @@ async function readBoundedAiResponse(response, onActivity) {
  * Chrome's Side Panel API lets us show a persistent panel alongside the page.
  */
 chrome.action.onClicked.addListener((tab) => {
-  if (!(tab.url || "").startsWith("https://www.youtube.com")) {
+  if (!HarborSites.hostSupported(tab.url)) {
     void updatePanelForTab(tab.id, tab.url, tab.windowId);
     return;
   }
@@ -294,8 +305,8 @@ async function closePanelForTab(tabId, windowId) {
 }
 
 async function updatePanelForTab(tabId, url, windowId) {
-  const isYouTube = (url || "").startsWith("https://www.youtube.com");
-  if (!isYouTube) {
+  const isSupported = HarborSites.hostSupported(url);
+  if (!isSupported) {
     // Close the visible instance first. Then disable this tab so Chrome cannot
     // reopen the global default panel as navigation settles.
     await closePanelForTab(tabId, windowId);
@@ -329,6 +340,41 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   const url = getNavigationUrl(changeInfo, tab);
   if (!url) return; // Ignore title and favicon-only updates.
   void updatePanelForTab(tabId, url, tab.windowId);
+  void cancelOrphanedAudioJobs();
+});
+
+// Audio jobs follow the page that created them: a transcription is only
+// useful while a tab still shows that video, so closing or navigating away
+// cancels the native job instead of burning a download + API call nobody
+// will read. harbor_audio_<videoId>_<provider> holds the live job id.
+async function cancelOrphanedAudioJobs() {
+  const store = await chrome.storage.local.get(null);
+  const active = Object.entries(store).filter(
+    ([key, value]) => key.startsWith("harbor_audio_") && value?.jobId,
+  );
+  if (!active.length) return;
+  const openMedia = new Set(
+    (await chrome.tabs.query({}))
+      .map((tab) => HarborSites.detect(tab.url || "")?.mediaId)
+      .filter(Boolean),
+  );
+  const removeKeys = [];
+  for (const [key, value] of active) {
+    const videoId = key
+      .slice("harbor_audio_".length)
+      .replace(/_(groq|local)$/, "");
+    if (openMedia.has(videoId)) continue;
+    try {
+      await harborAudioNative({ action: "audioCancel", jobId: value.jobId });
+    } catch {}
+    removeKeys.push(key);
+  }
+  if (removeKeys.length) await chrome.storage.local.remove(removeKeys);
+}
+
+// The user closed a tab — any audio job bound to its video is orphaned.
+chrome.tabs.onRemoved.addListener(() => {
+  void cancelOrphanedAudioJobs();
 });
 
 // The user switched to a different tab (or opened a new one).
@@ -350,6 +396,26 @@ chrome.tabs.onActivated.addListener(async ({ tabId, windowId }) => {
  * This is like a switchboard — different "actions" trigger different handlers.
  */
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (!message || typeof message.action !== "string") return false;
+  const fromExtensionPage =
+    sender.id === chrome.runtime.id &&
+    sender.url?.startsWith(chrome.runtime.getURL(""));
+  const fromSupportedContent =
+    sender.id === chrome.runtime.id &&
+    Number.isInteger(sender.tab?.id) &&
+    HarborSites.detect(sender.url);
+  const contentActions = ["openSidePanel", "getPlaybackState", "saveNote"];
+  if (!fromExtensionPage && !(fromSupportedContent && contentActions.includes(message.action))) {
+    // Other extension listeners own their own messages (e.g. learning services).
+    if (message.action.startsWith("lens")) return false;
+    sendResponse({ success: false, error: "Only trusted extension pages can access this service." });
+    return false;
+  }
+  if (!fromExtensionPage && message.action === "saveNote" &&
+      HarborSites.detect(sender.url)?.mediaId !== message.videoId) {
+    sendResponse({ success: false, error: "视频已切换，请重新加载字幕" });
+    return false;
+  }
   // We need to return true to indicate we'll respond asynchronously
   if (message.action === "analyzeTranscript") {
     // Pass video duration to help the AI validate timestamps
@@ -498,21 +564,74 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
   }
 
+  // Re-resolve a streamable media URL for a supported site media ID. Apple
+  // Podcasts assetUrls come from the page's MusicKit session and can expire,
+  // so the transcript path asks for a fresh one right before starting audio.
+  if (message.action === "resolveMediaUrl") {
+    (async () => {
+      try {
+        const mediaId = String(message.videoId || "");
+        if (HarborSites.siteOf(mediaId) !== "apple") {
+          sendResponse({ success: true, mediaUrl: "" });
+          return;
+        }
+        const tabs = await chrome.tabs.query({ url: "https://podcasts.apple.com/*" });
+        const tab = tabs.find(
+          (t) => HarborSites.detect(t.url)?.mediaId === mediaId,
+        );
+        if (!tab) {
+          sendResponse({ success: false, error: "Episode tab not found" });
+          return;
+        }
+        const episode = await getAppleEpisodeDetails(tab.id);
+        const current = await chrome.tabs.get(tab.id);
+        if (HarborSites.detect(current.url)?.mediaId !== mediaId) {
+          sendResponse({ success: false, error: "Episode changed while resolving audio" });
+          return;
+        }
+        if (typeof episode?.mediaUrl !== "string" || !episode.mediaUrl.startsWith("https://")) {
+          sendResponse({ success: false, error: "Episode audio unavailable" });
+          return;
+        }
+        sendResponse({ success: true, mediaUrl: episode.mediaUrl });
+      } catch (err) {
+        sendResponse({ success: false, error: err.message });
+      }
+    })();
+    return true;
+  }
+
   // Relay messages from side panel to content script
   if (message.action === "getPlaybackState") {
-    if (sender.id !== chrome.runtime.id || !sender.url?.startsWith(chrome.runtime.getURL(""))) return false;
+    if (sender.id !== chrome.runtime.id) return false;
     (async () => {
-      if (!Number.isInteger(message.tabId)) throw new Error("视频标签页无效");
-      const tab = await chrome.tabs.get(message.tabId);
-      const url = new URL(tab.url);
-      if (url.origin !== "https://www.youtube.com" || url.searchParams.get("v") !== message.videoId) throw new Error("视频已切换，请重新打开侧栏");
+      // Content scripts don't know their own tabId — and may only read the
+      // tab they run in. Extension pages may specify any bound tab.
+      const fromExtensionPage = sender.url?.startsWith(chrome.runtime.getURL(""));
+      const targetTabId = fromExtensionPage
+        ? message.tabId
+        : sender.tab?.id;
+      if (!Number.isInteger(targetTabId)) throw new Error("视频标签页无效");
+      const tab = await chrome.tabs.get(targetTabId);
+      if (HarborSites.detect(tab.url)?.mediaId !== message.videoId) throw new Error("视频已切换，请重新打开侧栏");
       const payload = {action:"getCurrentTime", videoId:message.videoId};
       let result;
-      try { result = await chrome.tabs.sendMessage(message.tabId, payload); }
+      try { result = await chrome.tabs.sendMessage(targetTabId, payload); }
       catch (error) {
         if (!/Receiving end does not exist|Could not establish connection/i.test(error.message)) throw error;
-        await chrome.scripting.executeScript({target:{tabId:message.tabId},files:["content.js"]});
-        result = await chrome.tabs.sendMessage(message.tabId, payload);
+        await chrome.scripting.executeScript({target:{tabId:targetTabId},files:["sites.js","content.js"]});
+        result = await chrome.tabs.sendMessage(targetTabId, payload);
+      }
+      if (result?.success === false || !Number.isFinite(result?.currentTime)) {
+        // Sites like Apple Podcasts keep their player (MusicKit) in the page's
+        // main world, unreachable from a content script.
+        const injected = await chrome.scripting.executeScript({
+          target: { tabId: targetTabId },
+          world: "MAIN",
+          args: [message.videoId],
+          func: harborPageReadMedia,
+        });
+        result = injected?.[0]?.result;
       }
       if (result?.success === false || !Number.isFinite(result?.currentTime)) throw new Error(result?.error || "视频播放器尚未就绪");
       return {success:true,currentTime:result.currentTime};
@@ -524,8 +643,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     debugLog("[Caption Harbor BG] Relay request:", message.payload?.action);
     (async () => {
       try {
-        // Query specifically for YouTube tabs to avoid side panel context issues
-        // Try multiple query strategies to find the right tab
+        const SUPPORTED_URLS = [
+          "https://www.youtube.com/*",
+          "https://www.bilibili.com/*",
+          "https://bilibili.com/*",
+          "https://podcasts.apple.com/*",
+        ];
+        // Query the active tab first to avoid side panel context issues.
         let tabs = await chrome.tabs.query({
           active: true,
           lastFocusedWindow: true,
@@ -536,19 +660,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           tabs[0]?.url,
         );
 
-        // If no YouTube tab found, try broader query
-        if (!tabs[0] || !tabs[0].url?.includes("youtube.com")) {
+        // If the front tab is not a supported site, look for an active one
+        if (!tabs[0] || !HarborSites.hostSupported(tabs[0].url)) {
           tabs = await chrome.tabs.query({
-            url: "https://www.youtube.com/*",
+            url: SUPPORTED_URLS,
             active: true,
           });
-          debugLog("[Caption Harbor BG] Active YouTube tabs:", tabs.length);
+          debugLog("[Caption Harbor BG] Active supported tabs:", tabs.length);
         }
 
-        // Still nothing? Try any YouTube tab
+        // Still nothing? Try any supported tab
         if (!tabs[0]) {
-          tabs = await chrome.tabs.query({ url: "https://www.youtube.com/*" });
-          debugLog("[Caption Harbor BG] Any YouTube tabs:", tabs.length);
+          tabs = await chrome.tabs.query({ url: SUPPORTED_URLS });
+          debugLog("[Caption Harbor BG] Any supported tabs:", tabs.length);
         }
 
         if (tabs[0]) {
@@ -572,16 +696,32 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           // truncated while the box is collapsed. We fall back to the DOM
           // only for fields the player didn't provide.
           if (message.payload?.action === "getVideoInfo") {
-            const playerInfo = await getPlayerVideoDetails(tabs[0].id);
-            if (playerInfo) {
-              response = {
-                title: playerInfo.title || response?.title || "",
-                channelName:
-                  playerInfo.channelName || response?.channelName || "",
-                duration: playerInfo.duration || response?.duration || 0,
-                description:
-                  playerInfo.description || response?.description || "",
-              };
+            const media = HarborSites.detect(tabs[0].url);
+            if (media?.site === "apple") {
+              const episode = await getAppleEpisodeDetails(tabs[0].id);
+              if (episode) {
+                response = {
+                  title: episode.title || response?.title || "",
+                  channelName:
+                    episode.channelName || response?.channelName || "",
+                  duration: episode.duration || response?.duration || 0,
+                  description:
+                    episode.description || response?.description || "",
+                  mediaUrl: episode.mediaUrl || "",
+                };
+              }
+            } else {
+              const playerInfo = await getPlayerVideoDetails(tabs[0].id);
+              if (playerInfo) {
+                response = {
+                  title: playerInfo.title || response?.title || "",
+                  channelName:
+                    playerInfo.channelName || response?.channelName || "",
+                  duration: playerInfo.duration || response?.duration || 0,
+                  description:
+                    playerInfo.description || response?.description || "",
+                };
+              }
             }
           }
 
@@ -635,6 +775,69 @@ async function getPlayerVideoDetails(tabId) {
     return results?.[0]?.result || null;
   } catch (e) {
     console.warn("[Caption Harbor BG] Player details unavailable:", e.message);
+    return null;
+  }
+}
+
+/**
+ * Reads Apple Podcasts episode metadata in the page's MAIN world. The
+ * episode page embeds a MusicKit instance whose developer token authorizes
+ * the same catalog API the site itself calls; the response carries the
+ * episode's streamable MP3 (assetUrl) for audio transcription.
+ */
+async function getAppleEpisodeDetails(tabId) {
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: "MAIN",
+      func: async () => {
+        try {
+          const url = new URL(location.href);
+          const episodeId = url.searchParams.get("i");
+          // MusicKit boots asynchronously after the Ember app; give it a few
+          // seconds before concluding the episode page has no token.
+          let mk;
+          for (let i = 0; i < 16; i++) {
+            mk = window.MusicKit?.getInstance?.();
+            if (mk?.developerToken) break;
+            await new Promise((r) => setTimeout(r, 500));
+          }
+          if (!episodeId || !mk?.developerToken) return null;
+          const storefront = mk.storefrontId || "us";
+          const endpoint = `https://amp-api.podcasts.apple.com/v1/catalog/${encodeURIComponent(storefront)}/podcast-episodes/${encodeURIComponent(episodeId)}?extend=fullDescription&l=en-US`;
+          const headers = { Authorization: `Bearer ${mk.developerToken}` };
+          if (mk.musicUserToken) headers["media-user-token"] = mk.musicUserToken;
+          const response = await fetch(endpoint, {
+            headers,
+            credentials: "omit",
+            signal: AbortSignal.timeout(10000),
+          });
+          if (!response.ok) return null;
+          const data = await response.json();
+          const attrs = data?.data?.[0]?.attributes || {};
+          const text = (value) =>
+            typeof value === "string" ? value : value?.standard || "";
+          return {
+            title: attrs.name || "",
+            channelName: attrs.artistName || "",
+            description:
+              text(attrs.fullDescription) || text(attrs.description),
+            duration:
+              Math.round((Number(attrs.durationInMilliseconds) || 0) / 1000),
+            mediaUrl:
+              typeof attrs.assetUrl === "string" ? attrs.assetUrl : "",
+          };
+        } catch {
+          return null;
+        }
+      },
+    });
+    return results?.[0]?.result || null;
+  } catch (e) {
+    console.warn(
+      "[Caption Harbor BG] Apple episode details unavailable:",
+      e.message,
+    );
     return null;
   }
 }
@@ -719,11 +922,12 @@ async function handleAnalyzeTranscript(
     // more trustworthy than the duration metadata, which is sometimes missing
     // or wrong. We use the larger of (metadata duration, last transcript stamp).
     let lastTranscriptSeconds = 0;
-    const stampMatches = transcriptText.match(/\[(\d+):(\d{2})\]/g) || [];
-    if (stampMatches.length) {
-      const last =
-        stampMatches[stampMatches.length - 1].match(/\[(\d+):(\d{2})\]/);
-      lastTranscriptSeconds = parseInt(last[1]) * 60 + parseInt(last[2]);
+    const stampMatches = String(transcriptText || "").matchAll(/\[(\d+):(\d{2})(?::(\d{2}))?\]/g);
+    for (const stamp of stampMatches) {
+      const seconds = stamp[3] === undefined
+        ? Number(stamp[1]) * 60 + Number(stamp[2])
+        : Number(stamp[1]) * 3600 + Number(stamp[2]) * 60 + Number(stamp[3]);
+      lastTranscriptSeconds = Math.max(lastTranscriptSeconds, seconds);
     }
 
     const effectiveSeconds = Math.max(
@@ -929,7 +1133,7 @@ async function handleSaveNote(
   selectedText,
 ) {
   try {
-    const canonicalVideoUrl = YTD_SETTINGS.canonicalYouTubeUrl(videoId);
+    const canonicalVideoUrl = HarborSites.mediaUrl(videoId);
     const safeTimestamp = Math.max(0, Math.floor(Number(timestamp) || 0));
     const exactSelectedText =
       typeof selectedText === "string"
@@ -942,7 +1146,7 @@ async function handleSaveNote(
       const minutes = Math.floor(safeTimestamp / 60);
       const seconds = safeTimestamp % 60;
       const note = {
-        id: `note_${Date.now()}`,
+        id: `note_${Date.now()}_${++noteIdSequence}`,
         videoId,
         videoTitle:
           typeof videoTitle === "string"
@@ -952,7 +1156,7 @@ async function handleSaveNote(
           typeof channelName === "string" ? channelName.slice(0, 300) : "",
         timestamp: `${minutes}:${String(seconds).padStart(2, "0")}`,
         timestampSeconds: safeTimestamp,
-        timestampedUrl: `${canonicalVideoUrl}&t=${safeTimestamp}s`,
+        timestampedUrl: HarborSites.timestampUrl(videoId, safeTimestamp),
         text: exactSelectedText,
         rawText: exactSelectedText,
         createdAt: Date.now(),
@@ -978,13 +1182,8 @@ async function handleSaveNote(
       debugLog("[Caption Harbor] No cached transcript, fetching...");
     }
 
-    // If no cached transcript, fetch it
-    if (!transcript) {
-      const transcriptResult = await handleFetchTranscript(videoId);
-      if (!transcriptResult.success) {
-        return { success: false, error: "Could not fetch transcript" };
-      }
-      transcript = transcriptResult.transcript;
+    if (!Array.isArray(transcript) || !transcript.length) {
+      return { success: false, error: "Please load the transcript in the side panel before saving a timestamp note." };
     }
 
     // Find the transcript line at the current timestamp
@@ -1068,11 +1267,11 @@ async function handleSaveNote(
     const formattedTimestamp = `${minutes}:${String(seconds).padStart(2, "0")}`;
 
     // Create timestamped URL
-    const timestampedUrl = `${canonicalVideoUrl}&t=${safeTimestamp}s`;
+    const timestampedUrl = HarborSites.timestampUrl(videoId, safeTimestamp);
 
     // Create the note object
     const note = {
-      id: `note_${Date.now()}`,
+      id: `note_${Date.now()}_${++noteIdSequence}`,
       videoId: videoId,
       videoTitle:
         typeof videoTitle === "string"
@@ -1185,16 +1384,12 @@ async function cleanupNoteText(
  * Saves a note to chrome.storage.local
  */
 async function saveNoteToStorage(note) {
-  const result = await chrome.storage.local.get("ytd_notes");
-  const notes = result.ytd_notes || [];
-  notes.unshift(note); // Add to beginning (newest first)
-
-  // Keep only last 100 notes to prevent storage bloat
-  if (notes.length > 100) {
-    notes.splice(100);
-  }
-
-  await chrome.storage.local.set({ ytd_notes: notes });
+  return serialNoteWrite(async () => {
+    const result = await chrome.storage.local.get("ytd_notes");
+    const notes = result.ytd_notes || [];
+    notes.unshift(note);
+    await chrome.storage.local.set({ ytd_notes: notes.slice(0, 100) });
+  });
 }
 
 /**
@@ -1220,10 +1415,11 @@ async function handleGetNotes(videoId) {
  */
 async function handleDeleteNote(noteId) {
   try {
-    const result = await chrome.storage.local.get("ytd_notes");
-    let notes = result.ytd_notes || [];
-    notes = notes.filter((n) => n.id !== noteId);
-    await chrome.storage.local.set({ ytd_notes: notes });
+    await serialNoteWrite(async () => {
+      const result = await chrome.storage.local.get("ytd_notes");
+      const notes = (result.ytd_notes || []).filter((n) => n.id !== noteId);
+      await chrome.storage.local.set({ ytd_notes: notes });
+    });
     return { success: true };
   } catch (error) {
     return { success: false, error: error.message };

@@ -11,6 +11,7 @@ function loadSidepanelHelpers({
   sendMessage = () => Promise.resolve({}),
   setTimeoutImpl = () => 0,
   clearTimeoutImpl = () => {},
+  documentExtras = {},
 } = {}) {
   const listeners = { addListener() {} };
   const sessionStorage = {};
@@ -26,12 +27,14 @@ function loadSidepanelHelpers({
     clearInterval() {},
     IntersectionObserver: class {},
     CSS: { escape: (value) => value },
+    Node: { TEXT_NODE: 3 },
     window: { getSelection: () => null, close() {} },
     document: {
       addEventListener() {},
       querySelectorAll: () => [],
       querySelector: () => null,
       getElementById: () => null,
+      ...documentExtras,
       createElement: () => {
         let value = "";
         return {
@@ -61,7 +64,7 @@ function loadSidepanelHelpers({
         },
       },
       windows: { getCurrent: () => Promise.resolve({ id: 1 }) },
-      tabs: { onUpdated: listeners, onActivated: listeners },
+      tabs: { onUpdated: listeners, onActivated: listeners, onRemoved: listeners },
     },
     YTD_SETTINGS: {},
   };
@@ -85,6 +88,7 @@ function loadBackgroundHelpers({
     setOptions: () => Promise.resolve(),
   },
 } = {}) {
+  let messageListener;
   const listeners = { addListener() {} };
   const localStorage = { ytd_settings: settings };
   const sandbox = {
@@ -120,12 +124,13 @@ function loadBackgroundHelpers({
       sidePanel,
       runtime: {
         onInstalled: listeners,
-        onMessage: listeners,
+        id: "test",
+        onMessage: { addListener(fn) { messageListener = fn; } },
         openOptionsPage() {},
         getURL: (resourcePath) => `chrome-extension://test/${resourcePath}`,
         sendMessage: () => Promise.resolve({ success: true }),
       },
-      tabs: { onUpdated: listeners, onActivated: listeners },
+      tabs: { onUpdated: listeners, onActivated: listeners, onRemoved: listeners },
     },
     YTD_SETTINGS: {
       STORAGE_KEY: "ytd_settings",
@@ -134,10 +139,11 @@ function loadBackgroundHelpers({
       canonicalYouTubeUrl: (videoId) =>
         `https://www.youtube.com/watch?v=${videoId}`,
     },
+    HarborSites: require("../sites"),
   };
   sandbox.globalThis = sandbox;
   vm.runInNewContext(read("background.js"), sandbox);
-  return sandbox.__YTD_TRANSLATION_TESTING__;
+  return { ...sandbox.__YTD_TRANSLATION_TESTING__, sandbox, messageListener };
 }
 
 test("non-YouTube tabs explicitly close before their panel is disabled", async () => {
@@ -381,6 +387,128 @@ test("Chinese sentence and clause punctuation creates semantic guardrails", () =
   assert.equal(segments.length, 2);
   assert.equal(segments[0].text, "这是一个被字幕切开的完整句子。");
   assert.equal(segments[1].text, "这是第二个想法，也应该保持语义完整！");
+});
+
+test("a spoken pause splits punctuation-free captions into separate rows", () => {
+  const { groupTranscriptEntries } = loadSidepanelHelpers();
+  const segments = groupTranscriptEntries([
+    { start: 0, duration: 2, text: "and then we went" },
+    { start: 2, duration: 2, text: "back to the harbor" },
+    // 1.4s of silence before the next caption: a real sentence boundary for
+    // sources that carry no punctuation at all.
+    { start: 5.4, duration: 2, text: "the next morning" },
+    { start: 7.4, duration: 2, text: "we tried again" },
+  ]);
+  assert.equal(segments.length, 2);
+  assert.equal(segments[0].text, "and then we went back to the harbor");
+  assert.equal(segments[0].start, 0);
+  assert.equal(segments[1].text, "the next morning we tried again");
+  assert.equal(segments[1].start, 5.4);
+});
+
+test("a clause comma does not split a sentence inside the guardrails", () => {
+  const { groupTranscriptEntries } = loadSidepanelHelpers();
+  // 129 chars before the comma: longer than idealChars but well inside
+  // maxChars, so the row must keep the whole sentence.
+  const head = "the committee reviewed all of the evidence gathered over several months and then deliberated carefu";
+  const segments = groupTranscriptEntries([
+    { start: 0, duration: 9, text: `${head}lly, before reaching a verdict.` },
+  ]);
+  assert.equal(segments.length, 1);
+  assert.equal(segments[0].text, `${head}lly, before reaching a verdict.`);
+});
+
+test("word clicks select the word under the caret, blank clicks do not", () => {
+  let caretNode = null;
+  const makeNode = (text) => ({ nodeType: 3, nodeValue: text });
+  const node = makeNode("the quick, brown fox");
+  const outsideNode = makeNode("elsewhere");
+  const textSpan = { contains: (n) => n === node };
+  // Every character i occupies the box [i*10, (i+1)*10) x [0, 10); the caret
+  // lands on the trailing edge of the clicked glyph like a real browser.
+  const { transcriptWordRangeAtPoint } = loadSidepanelHelpers({
+    documentExtras: {
+      caretRangeFromPoint: (x) => ({
+        startContainer: caretNode,
+        startOffset: Math.round(x / 10),
+      }),
+      createRange: () => ({
+        setStart(n, i) {
+          this.node = n;
+          this.start = i;
+        },
+        setEnd(n, i) {
+          this.end = i;
+        },
+        getBoundingClientRect() {
+          return {
+            left: this.start * 10,
+            right: (this.start + 1) * 10,
+            top: 0,
+            bottom: 10,
+          };
+        },
+        toString() {
+          return this.node.nodeValue.slice(this.start, this.end);
+        },
+      }),
+    },
+  });
+  const clickChar = (charIndex, target = node) => {
+    caretNode = target;
+    const range = transcriptWordRangeAtPoint(charIndex * 10 + 5, 5, textSpan);
+    return range ? range.toString() : null;
+  };
+
+  assert.equal(clickChar(6), "quick"); // inside a word
+  assert.equal(clickChar(2), "the"); // caret lands on the trailing edge
+  assert.equal(clickChar(3), null); // a space is blank space: seek instead
+  assert.equal(clickChar(9), null); // punctuation is blank space too
+  assert.equal(clickChar(19), "fox"); // last character of the node
+  assert.equal(clickChar(2, outsideNode), null); // caret outside the span
+});
+
+test("word clicks select one CJK character and keep apostrophes", () => {
+  let caretNode = null;
+  const makeNode = (text) => ({ nodeType: 3, nodeValue: text });
+  const textSpan = { contains: (n) => n === caretNode };
+  const { transcriptWordRangeAtPoint } = loadSidepanelHelpers({
+    documentExtras: {
+      caretRangeFromPoint: (x) => ({
+        startContainer: caretNode,
+        startOffset: Math.round(x / 10),
+      }),
+      createRange: () => ({
+        setStart(n, i) {
+          this.node = n;
+          this.start = i;
+        },
+        setEnd(n, i) {
+          this.end = i;
+        },
+        getBoundingClientRect() {
+          return {
+            left: this.start * 10,
+            right: (this.start + 1) * 10,
+            top: 0,
+            bottom: 10,
+          };
+        },
+        toString() {
+          return this.node.nodeValue.slice(this.start, this.end);
+        },
+      }),
+    },
+  });
+  const clickChar = (text, charIndex) => {
+    caretNode = makeNode(text);
+    const range = transcriptWordRangeAtPoint(charIndex * 10 + 5, 5, textSpan);
+    return range ? range.toString() : null;
+  };
+
+  assert.equal(clickChar("don't stop now", 2), "don't");
+  assert.equal(clickChar("今天天气很不错", 1), "天");
+  assert.equal(clickChar("well-known phrase", 5), "well-known");
 });
 
 test("structured translation batches align by stable ID and expose missing fallback", () => {
@@ -787,4 +915,73 @@ test("Chinese prompt preserves natural bilingual-learning style rules", () => {
   assert.match(prompt, /Use 你, never 您/);
   assert.match(prompt, /spaces between Chinese and adjacent English words or digits/);
   assert.match(prompt, /source-language `text`/);
+});
+
+
+test("Apple audio URL resolution finds the matching episode tab", async () => {
+  const h = loadBackgroundHelpers();
+  h.sandbox.chrome.tabs.query = async () => [{ id: 3, url: "https://podcasts.apple.com/us/podcast/id1?i=2" }];
+  h.sandbox.chrome.tabs.get = async () => ({ url: "https://podcasts.apple.com/us/podcast/id1?i=2" });
+  h.sandbox.getAppleEpisodeDetails = async () => ({ mediaUrl: "https://cdn.example/audio.mp3" });
+  const result = await new Promise(resolve => h.messageListener(
+    { action: "resolveMediaUrl", videoId: "apple_1_2" },
+    { id: "test", url: "chrome-extension://test/sidepanel.html" }, resolve));
+  assert.equal(result.success, true);
+  assert.equal(result.mediaUrl, "https://cdn.example/audio.mp3");
+});
+
+test("content scripts cannot delete notes or spend through background AI services", () => {
+  const h = loadBackgroundHelpers();
+  for (const action of ["deleteNote", "analyzeTranscript", "translateContent", "resolveMediaUrl"]) {
+    let response;
+    const handled = h.messageListener({ action }, {
+      id: "test", tab: { id: 3 }, url: "https://www.youtube.com/watch?v=video123",
+    }, value => { response = value; });
+    assert.equal(handled, false);
+    assert.equal(response.success, false);
+  }
+});
+
+test("analysis derives duration from hour-format transcript timestamps", async () => {
+  const h = loadBackgroundHelpers();
+  let duration;
+  h.sandbox.loadPromptSection = async (_file, _heading, variables) => {
+    duration = variables.maxTimestampSeconds;
+    return "prompt";
+  };
+  h.sandbox.requestAiCompletion = async () => ({ text: '{"chapters":[]}' });
+  const result = await h.sandbox.handleAnalyzeTranscript("[00:01:00] hello\n[01:05:40] end", "title", "", "", 0);
+  assert.equal(result.success, true);
+  assert.equal(duration, 3940);
+});
+
+test("saving a note before captions load gives an actionable message", async () => {
+  const h = loadBackgroundHelpers();
+  const result = await h.handleSaveNote("video123", 12, "title", "", "");
+  assert.equal(result.success, false);
+  assert.match(result.error, /load.*transcript|加载.*字幕/i);
+  assert.doesNotMatch(result.error, /not defined/);
+});
+
+
+test("simultaneous note saves preserve every note and generate distinct IDs", async () => {
+  const h = loadBackgroundHelpers();
+  const saved = await Promise.all(["first", "second", "third"].map(text =>
+    h.handleSaveNote("video123", 12, "title", "", text)));
+  const result = await h.sandbox.handleGetNotes("video123");
+  assert.equal(result.notes.length, 3);
+  assert.equal(new Set(saved.map(r => r.note.id)).size, 3);
+});
+
+
+test("Apple audio URL resolution discards results after episode navigation", async () => {
+  const h = loadBackgroundHelpers();
+  h.sandbox.chrome.tabs.query = async () => [{ id: 3, url: "https://podcasts.apple.com/us/podcast/id1?i=2" }];
+  h.sandbox.chrome.tabs.get = async () => ({ url: "https://podcasts.apple.com/us/podcast/id1?i=3" });
+  h.sandbox.getAppleEpisodeDetails = async () => ({ mediaUrl: "https://cdn.example/other.mp3" });
+  const result = await new Promise(resolve => h.messageListener(
+    { action: "resolveMediaUrl", videoId: "apple_1_2" },
+    { id: "test", url: "chrome-extension://test/sidepanel.html" }, resolve));
+  assert.equal(result.success, false);
+  assert.equal(result.mediaUrl, undefined);
 });

@@ -120,6 +120,23 @@ var LensCore = (() => {
     }
     return content;
   }
+  // Bilibili subtitle JSON: { body: [{ from, to, content }] }, seconds-based.
+  // Returns the {offset(ms), duration(ms), text} shape transcriptResult expects.
+  function bilibiliSubtitlesToContent(data) {
+    const content = [];
+    for (const entry of data?.body || []) {
+      const from = Number(entry?.from);
+      const to = Number(entry?.to);
+      const text = String(entry?.content || "").trim();
+      if (!Number.isFinite(from) || from < 0 || !text) continue;
+      content.push({
+        offset: Math.round(from * 1000),
+        duration: Math.max(1, Math.round(((Number.isFinite(to) ? to : from + 2) - from) * 1000)),
+        text,
+      });
+    }
+    return content;
+  }
   function selectContext(entries, query, limit = 48000) {
     const lines = entries.map(
       (e) => `[${time(e.start).slice(0, 8)}] ${e.text}`,
@@ -179,6 +196,7 @@ var LensCore = (() => {
     exportSubtitles,
     transcriptResult,
     youtubeJson3ToContent,
+    bilibiliSubtitlesToContent,
     selectContext,
   };
 })();

@@ -3,7 +3,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 test("unpacked extension starts its real service worker and persists learning settings", async () => {
-  const root = path.resolve(__dirname, "../..");
+  const root = process.env.CAPTION_HARBOR_EXTENSION_ROOT || path.resolve(__dirname, "../..");
   const profile = fs.mkdtempSync(
     path.join(os.tmpdir(), "caption-harbor-test-"),
   );
@@ -93,24 +93,40 @@ test("unpacked extension starts its real service worker and persists learning se
     });
     expect(playback.valid).toEqual({ success: true, currentTime: 42.5 });
     expect(playback.wrong.success).toBe(false);
-    await page.addScriptTag({
-      url: `chrome-extension://${id}/player-connection.js`,
-    });
+    for (const file of ["sites.js", "page-media.js", "player-connection.js"]) {
+      await page.addScriptTag({
+        url: `chrome-extension://${id}/${file}`,
+      });
+    }
     const directAndFallback = await page.evaluate(async () => {
       const tabs = await chrome.tabs.query({
         url: "https://www.youtube.com/watch?v=video123",
       });
       const direct = await readBoundPlayerState(tabs[0].id, "video123");
+      let changedFlag = null;
+      try {
+        await readBoundPlayerState(tabs[0].id, "other123");
+      } catch (error) {
+        changedFlag = error.videoChanged === true;
+      }
       const original = chrome.tabs.sendMessage;
       try {
         chrome.tabs.sendMessage = async () => undefined;
         const fallback = await readBoundPlayerState(tabs[0].id, "video123");
-        return { direct: direct.currentTime, fallback: fallback.currentTime };
+        return {
+          direct: direct.currentTime,
+          fallback: fallback.currentTime,
+          changedFlag,
+        };
       } finally {
         chrome.tabs.sendMessage = original;
       }
     });
-    expect(directAndFallback).toEqual({ direct: 42.5, fallback: 42.5 });
+    expect(directAndFallback).toEqual({
+      direct: 42.5,
+      fallback: 42.5,
+      changedFlag: true,
+    });
     expect(errors).toEqual([]);
   } finally {
     await context.close();
@@ -120,7 +136,7 @@ test("unpacked extension starts its real service worker and persists learning se
 
 test("native host reads private environment configuration without persisting token", async () => {
   const { spawnSync } = require("node:child_process");
-  const root = path.resolve(__dirname, "../..");
+  const root = process.env.CAPTION_HARBOR_EXTENSION_ROOT || path.resolve(__dirname, "../..");
   const temp = fs.mkdtempSync(
     path.join(os.tmpdir(), "caption-harbor-native-test-"),
   );
@@ -191,7 +207,7 @@ test("native host reads private environment configuration without persisting tok
 });
 
 test("service configuration and learning controls follow one interface language", async () => {
-  const root = path.resolve(__dirname, "../..");
+  const root = process.env.CAPTION_HARBOR_EXTENSION_ROOT || path.resolve(__dirname, "../..");
   const profile = fs.mkdtempSync(
     path.join(os.tmpdir(), "caption-harbor-settings-test-"),
   );
@@ -227,7 +243,7 @@ test("service configuration and learning controls follow one interface language"
           .filter((s) => /[\u4e00-\u9fff]/.test(s));
       });
     expect(untranslated).toEqual([]);
-    const aligned = await page.locator(".checkbox-line").evaluate((label) => {
+    const aligned = await page.locator(".checkbox-line").first().evaluate((label) => {
       const c = label.querySelector("input").getBoundingClientRect();
       const t = label.querySelector("span").getBoundingClientRect();
       return Math.abs(c.top + c.height / 2 - t.top - t.height / 2) < 2;

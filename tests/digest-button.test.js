@@ -26,6 +26,16 @@ class FakeElement {
     this.parentElement = null;
     this.children = [];
     this.style = {};
+    this.dataset = {};
+    this.classList = {
+      classes: new Set(),
+      add(name) {
+        this.classes.add(name);
+      },
+      contains(name) {
+        return this.classes.has(name);
+      },
+    };
     this.listeners = {};
   }
 
@@ -96,10 +106,15 @@ class FakeElement {
   }
 }
 
-function createHarness() {
+function createHarness({
+  href = "https://www.youtube.com/watch?v=abc123_xY",
+  pathname = "/watch",
+  search = "?v=abc123_xY",
+} = {}) {
   const actionRows = [];
   const fallbackRows = [];
   const elements = [];
+  const queries = {};
   const documentListeners = {};
   const windowListeners = {};
   const observers = [];
@@ -109,6 +124,7 @@ function createHarness() {
   const document = {
     readyState: "loading",
     body: new FakeElement(),
+    head: new FakeElement(),
     addEventListener(type, listener) {
       documentListeners[type] = listener;
     },
@@ -122,8 +138,8 @@ function createHarness() {
       if (selector.includes("top-level-buttons-computed")) return fallbackRows;
       return [];
     },
-    querySelector() {
-      return null;
+    querySelector(selector) {
+      return queries[selector] || null;
     },
     getElementById(id) {
       return elements.find((element) => element.id === id && element.isConnected);
@@ -138,8 +154,14 @@ function createHarness() {
   const context = vm.createContext({
     console,
     document,
+    HarborSites: require("../sites"),
+    location: {
+      href,
+      pathname,
+      search,
+    },
     window: {
-      location: { pathname: "/watch" },
+      location: { pathname },
       addEventListener(type, listener) {
         windowListeners[type] = listener;
       },
@@ -186,6 +208,7 @@ function createHarness() {
     actionRows,
     fallbackRows,
     elements,
+    queries,
     documentListeners,
     windowListeners,
     observers,
@@ -332,4 +355,32 @@ test("DOM mutation reconciliation repairs a replaced toolbar", () => {
   assert.equal(oldGroup.children.length, 0);
   assert.equal(newRow.children.length, 1);
   assert.equal(newGroup.children.length, 1);
+});
+
+test("Bilibili Digest overlays the player, never the site-managed toolbar", () => {
+  const harness = createHarness({
+    href: "https://www.bilibili.com/video/BV1Pkud6sE5n",
+    pathname: "/video/BV1Pkud6sE5n",
+    search: "",
+  });
+  const toolbar = new FakeElement({ width: 500, height: 36 });
+  const playerContainer = new FakeElement({ width: 732, height: 458 });
+  harness.queries[
+    ".video-toolbar .toolbar-left, #arc_toolbar_report .video-toolbar-left, .video-toolbar"
+  ] = toolbar;
+  harness.queries[".bpx-player-container"] = playerContainer;
+
+  assert.equal(harness.context.injectDigestButton(), true);
+  // .video-toolbar is reconciled by Bilibili's own renderer — a foreign child
+  // there crashed it (HierarchyRequestError) and disabled web fullscreen.
+  assert.equal(toolbar.children.length, 0);
+  assert.equal(playerContainer.children.length, 1);
+  const button = playerContainer.children[0];
+  assert.equal(button.id, "ytd-digest-button");
+  assert.equal(button.style.position, "absolute");
+  assert.equal(button.dataset.overlay, "1");
+  assert.equal(
+    playerContainer.classList.contains("caption-harbor-posfix"),
+    true,
+  );
 });

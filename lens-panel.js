@@ -189,7 +189,7 @@ async function lensLoadWords() {
 function lensPlay(occ) {
   if (occ.videoId === currentVideoId) return seekTo(occ.start);
   return chrome.tabs.create({
-    url: `https://www.youtube.com/watch?v=${encodeURIComponent(occ.videoId)}&t=${Math.floor(occ.start)}s`,
+    url: HarborSites.timestampUrl(occ.videoId, occ.start),
   });
 }
 function lensRenderWords() {
@@ -325,7 +325,7 @@ async function lensAsk(quiz = false) {
       context: context.text,
       history,
     });
-    if (videoId !== currentVideoId) return;
+    if (videoId !== currentVideoId || entries !== currentTranscript) return;
     output.replaceChildren();
     if (quiz) {
       for (const item of res.data.questions.slice(0, 5)) {
@@ -347,7 +347,8 @@ async function lensAsk(quiz = false) {
         { role: "user", text: question },
         { role: "assistant", text: res.text },
       );
-      lens$("lens-question").value = "";
+      if (lens$("lens-question").value.trim() === question)
+        lens$("lens-question").value = "";
     }
     if (context.partial)
       card.append(
@@ -392,17 +393,19 @@ async function lensRenderHistory() {
 }
 async function lensPlayer(command) {
   if (!youtubeTabId || !currentVideoId) throw new Error("请先打开视频");
-  const state = await chrome.tabs.sendMessage(youtubeTabId, {
-    action: "getCurrentTime",
-  });
+  const tabId = youtubeTabId;
+  const videoId = currentVideoId;
   const entries = currentTranscript || [];
+  const state = await readBoundPlayerState(tabId, videoId);
+  if (tabId !== youtubeTabId || videoId !== currentVideoId)
+    throw harborVideoChangedError();
   let i = entries.findLastIndex((e) => e.start <= state.currentTime);
   if (i < 0) i = 0;
   const entry = entries[i];
   const next = entries[i + 1];
-  const result = await chrome.tabs.sendMessage(youtubeTabId, {
+  const result = await chrome.tabs.sendMessage(tabId, {
     action: "lensPlayer",
-    videoId: currentVideoId,
+    videoId,
     command,
     start:
       command === "previous"
@@ -416,7 +419,8 @@ async function lensPlayer(command) {
         )
       : undefined,
   });
-  if (!result.success) throw new Error(result.error || "播放器操作失败");
+  if (tabId !== youtubeTabId || videoId !== currentVideoId) return;
+  if (!result?.success) throw new Error(result?.error || "播放器操作失败");
   lensStatus(
     result.loop
       ? "已开启单句循环；再次点击可关闭"
@@ -433,6 +437,8 @@ async function lensImport(file) {
   const entries = LensCore.parseSubtitles(await file.text());
   if (videoId !== currentVideoId) throw new Error("视频已切换，请重新导入");
   currentTranscript = entries;
+  currentTranscriptSource = "imported";
+  currentTranscriptAudioError = null;
   currentTranscriptText = entries.map((e) => e.text).join(" ");
   currentTranscriptTimestamped = entries
     .map((e) => `[${LensCore.time(e.start).slice(0, 8)}] ${e.text}`)
@@ -464,10 +470,7 @@ function lensExportWords(format) {
     meaning: w.meaning,
     context: w.context,
     source: w.occurrences
-      .map(
-        (o) =>
-          `https://www.youtube.com/watch?v=${o.videoId}&t=${Math.floor(o.start)}s`,
-      )
+      .map((o) => HarborSites.timestampUrl(o.videoId, o.start))
       .join(" "),
   }));
   if (format === "csv") {
@@ -605,10 +608,9 @@ function lensInit() {
         return;
       const videoId = currentVideoId;
       const title = currentVideoTitle;
-      const state = await chrome.tabs.sendMessage(youtubeTabId, {
-        action: "getCurrentTime",
-      });
-      if (videoId !== currentVideoId) return;
+      const tabId = youtubeTabId;
+      const state = await readBoundPlayerState(tabId, videoId);
+      if (videoId !== currentVideoId || tabId !== youtubeTabId) return;
       await lensMessage({
         action: "lensHistory",
         videoId,

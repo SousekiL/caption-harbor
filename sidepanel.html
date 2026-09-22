@@ -97,8 +97,8 @@
         <div class="welcome-icon" aria-hidden="true"></div>
         <div class="welcome-title">Ready to Digest</div>
         <div class="welcome-desc">
-          Navigate to a YouTube video and click the extension icon to get an
-          AI-powered digest.
+          Open a YouTube, Bilibili, or Apple Podcasts episode and click the
+          extension icon to get an AI-powered digest.
         </div>
       </div>
 
@@ -133,6 +133,11 @@
             <div class="section-header transcript-section-header">
               <div class="section-title">字幕</div>
               <div class="transcript-actions">
+                <span
+                  id="transcriptSourceBadge"
+                  class="transcript-source-badge"
+                  hidden
+                ></span>
                 <button class="enhance-btn" id="copyTranscriptBtn">Copy</button>
                 <button class="enhance-btn" id="exportTranscriptBtn">
                   Export
@@ -285,6 +290,8 @@
 
     <script src="ui-language.js"></script>
     <script src="settings.js"></script>
+    <script src="sites.js"></script>
+    <script src="page-media.js"></script>
     <script src="lens-core.js"></script>
     <script src="browser-captions.js"></script>
     <script src="audio-transcription.js"></script>

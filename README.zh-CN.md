@@ -2,7 +2,7 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md) · [下载安装包](https://github.com/SousekiL/caption-harbor/releases)
 
-边看 YouTube，边读字幕、理解概念、积累生词。Caption Harbor 将双语阅读、AI 解释、欧路词典和视频笔记放进同一个浏览器侧栏。
+边看 YouTube、Bilibili 或收听 Apple Podcasts 网页节目，边读字幕、理解概念、积累生词。Caption Harbor 将双语阅读、AI 解释、欧路词典和视频笔记放进同一个浏览器侧栏。
 
 **本项目基于 [Zara Zhang 的 YouTube Digest](https://github.com/zarazhangrui/youtube-digest) 改进，是独立维护的 fork。** 我们保留了她原有的字幕阅读体验，并新增字幕获取方式、本地转录和生词学习流程。原项目的 MIT 许可和署名完整保留；本版本并非 Zara 官方发布。
 
@@ -17,6 +17,8 @@
 
 ![Caption Harbor 在 YouTube 视频旁展示字幕、划词和学习操作](docs/images/feature-overview.png)
 
+![Caption Harbor 在 Bilibili 视频旁展示英文音频转录字幕](docs/images/bilibili-transcript.png)
+
 ## 哪些来自原版，哪些是本版本的改进？
 
 | 模块 | YouTube Digest 原有基础 | Caption Harbor 的新增与改进 |
@@ -29,6 +31,17 @@
 | 学习记录 | 笔记与近期缓存 | 视频历史、播放位置、生词与笔记数量 |
 | 跟随播放 | 字幕高亮和滚动 | 绑定当前视频取播放位置；视频跳转保持同步，手动滚动字幕才暂停 |
 | 设置 | 密钥和设置页语言控制 | 「字幕与 AI」「学习设置」两部分；界面语言统一控制设置页和视频侧栏 |
+
+## 2.1.5 修复版
+
+- 修复切换视频时旧概览、字幕缓存、笔记筛选和播放操作串到另一个视频的问题。
+- 修复问答返回清空新草稿、关闭解释弹窗后仍写入旧弹窗的问题。
+- 修复 Apple Podcasts 音频地址解析、本机任务启动及超时状态、音频分段时间轴问题。
+- 保留通信中断后结果不明确的转录任务，防止自动重复提交；明确失败仍可重试。
+- 重置数据会同时清空设置表单，避免再次保存时恢复已删除的旧密钥。
+- AI 默认模型使用 DeepSeek 官方当前推荐的 `deepseek-flash` 标识。
+
+升级时保留原来的扩展目录，在浏览器扩展管理页重新加载，再刷新视频页面。**已安装本机助手的用户必须重新运行对应浏览器的助手安装命令**，因为助手是独立复制安装的。无需重新下载已有 Whisper 模型。
 
 ## 2.1.4 更新
 
@@ -90,7 +103,7 @@
 | Groq | [Groq API key](https://console.groq.com/keys)、本机 yt-dlp 和 FFmpeg 助手 | 本机准备音频，上传 Groq 按量转录 |
 | 本地 Whisper | 本机助手、whisper.cpp、下载好的模型 | 本机 CPU/GPU 和内存，无转录接口费 |
 
-**[DeepSeek API key](https://platform.deepseek.com/api_keys) 独立配置**，用于翻译、概览、解释、问答和 AI 笔记处理。当前集成为 DeepSeek V4 Flash；只读字幕不需要它。
+**[DeepSeek API key](https://platform.deepseek.com/api_keys) 独立配置**，用于翻译、概览、解释、问答和 AI 笔记处理。当前集成为 DeepSeek Flash；只读字幕不需要它。
 
 密钥直接填在设置页。各服务的账号、额度和账单相互独立；开启云端转录前查看 [Supadata 价格](https://supadata.ai/pricing)和 [Groq 转录说明](https://console.groq.com/docs/speech-to-text)。
 

@@ -10,7 +10,7 @@ var YTD_SETTINGS = (() => {
     provider: "deepseek",
     aiApiKey: "",
     aiBaseUrl: "https://api.deepseek.com",
-    aiModel: "deepseek-v4-flash",
+    aiModel: "deepseek-flash",
     supadataApiKey: "",
   });
 

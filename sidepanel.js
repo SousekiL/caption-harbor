@@ -25,6 +25,7 @@ let currentVideoTitle = "";
 let currentChannelName = "";
 let currentVideoDescription = "";
 let currentVideoDuration = 0;
+let currentMediaUrl = ""; // Streamable audio URL for sites like Apple Podcasts
 let isAnalysisLoading = false; // Track if analysis is in progress
 let youtubeTabId = null; // Store the YouTube tab ID for reliable messaging
 let errorAction = null;
@@ -45,6 +46,7 @@ let interfaceTranslationInFlight = new Set();
 let interfaceTranslationFailures = new Set();
 let currentNotes = [];
 let currentNotesFilterVideoId = null;
+let notesRequestGeneration = 0;
 const TRANSLATION_MESSAGE_TIMEOUT_MS = 130_000;
 const TRANSLATION_BATCH_SIZE = 3;
 
@@ -107,6 +109,14 @@ let pendingTranscriptViewState = null;
 let transcriptViewStateSaveTimer = null;
 let isRestoringTranscriptView = false;
 let selectionActionsController = null;
+// Set by setupExplainFeature: presents the action toolbar for a Range.
+let presentTranscriptSelectionActions = null;
+// "audio" | "captions" | "imported" | null — shown as a badge so a stale
+// captions fallback is never mistaken for a real audio transcript.
+let currentTranscriptSource = null;
+// Why audio transcription failed when the shown transcript fell back to
+// site captions; surfaced as the badge tooltip.
+let currentTranscriptAudioError = null;
 let lastTranscriptScrollTop = 0;
 
 // ============================================================
@@ -114,10 +124,12 @@ let lastTranscriptScrollTop = 0;
 // ============================================================
 
 const TRANSCRIPT_SEGMENT_LIMITS = Object.freeze({
-  minChars: 60,
-  idealChars: 180,
-  maxChars: 320,
-  maxSeconds: 20,
+  minChars: 14,
+  idealChars: 100,
+  maxChars: 240,
+  maxSeconds: 14,
+  pauseSeconds: 0.8,
+  softPauseSeconds: 0.35,
 });
 
 function normalizeCaptionText(text) {
@@ -162,14 +174,18 @@ function splitOversizedThought(text, maxChars) {
 
 /**
  * Reconstructs complete sentences across raw caption boundaries. Each segment
- * keeps the timestamp of the first caption that contributed text. Character
- * and time limits prevent a malformed Supadata entry from becoming one giant
- * row while punctuation remains the preferred boundary.
+ * keeps the timestamp of the first caption that contributed text. Punctuation
+ * is the preferred boundary; pauses between caption entries act as the
+ * boundary for sources without punctuation (e.g. auto captions). Character
+ * and time guardrails prevent a malformed entry from becoming one giant row.
  */
 function groupTranscriptEntries(entries, limits = TRANSCRIPT_SEGMENT_LIMITS) {
   if (!Array.isArray(entries) || entries.length === 0) return [];
 
+  const pauseSeconds = limits.pauseSeconds ?? Infinity;
+  const softPauseSeconds = limits.softPauseSeconds ?? Infinity;
   const pieces = [];
+  let previousEntryEnd = null;
   entries.forEach((entry, entryIndex) => {
     const text = normalizeCaptionText(entry?.text);
     if (!text) return;
@@ -177,10 +193,14 @@ function groupTranscriptEntries(entries, limits = TRANSCRIPT_SEGMENT_LIMITS) {
       ? Number(entry.start)
       : 0;
     const duration = Math.max(0, Number(entry.duration) || 0);
+    const gapBefore =
+      previousEntryEnd === null ? 0 : Math.max(0, start - previousEntryEnd);
+    previousEntryEnd = Math.max(previousEntryEnd || 0, start + duration);
     const sentenceParts = text.match(
       /[^.!?;:,。！？；：，]+(?:[.!?;:,。！？；：，]+["')\]”’）】」』]*|$)/g,
     ) || [text];
     let consumedChars = 0;
+    let firstPiece = true;
 
     sentenceParts.forEach((sentencePart) => {
       const cleanPart = normalizeCaptionText(sentencePart);
@@ -193,12 +213,14 @@ function groupTranscriptEntries(entries, limits = TRANSCRIPT_SEGMENT_LIMITS) {
         pieces.push({
           text: part,
           start: start + duration * ratio,
+          gapBefore: firstPiece ? gapBefore : 0,
           semanticEnd:
             /[.!?。！？]["')\]”’）】」』]*$/.test(part) ||
             oversizedParts.length > 1,
           clauseEnd: /[;:,；：，]["')\]”’）】」』]*$/.test(part),
           sourceOrder: `${entryIndex}:${partIndex}`,
         });
+        firstPiece = false;
         consumedChars += part.length + 1;
       });
     });
@@ -221,16 +243,25 @@ function groupTranscriptEntries(entries, limits = TRANSCRIPT_SEGMENT_LIMITS) {
   };
 
   pieces.forEach((piece) => {
+    if (current) {
+      const gap = piece.gapBefore || 0;
+      const elapsedBefore = Math.max(0, piece.start - current.start);
+      // A spoken pause ends a row even without punctuation; a shorter pause
+      // only breaks a row that has already reached its ideal length.
+      const pauseBreak =
+        (gap >= pauseSeconds &&
+          (current.text.length >= limits.minChars || elapsedBefore >= 4)) ||
+        (gap >= softPauseSeconds && current.text.length >= limits.idealChars);
+      if (pauseBreak) flush();
+    }
     if (!current) current = { start: piece.start, text: "" };
     current.text = normalizeCaptionText(`${current.text} ${piece.text}`);
     const elapsed = Math.max(0, piece.start - current.start);
     const comfortablySized = current.text.length >= limits.minChars;
-    const reachedIdeal = current.text.length >= limits.idealChars;
     const atNaturalBoundary =
       piece.semanticEnd ||
       (piece.clauseEnd &&
-        (reachedIdeal ||
-          current.text.length >= limits.maxChars ||
+        (current.text.length >= limits.maxChars ||
           elapsed >= limits.maxSeconds));
     const reachedGuardrail =
       atNaturalBoundary &&
@@ -241,7 +272,6 @@ function groupTranscriptEntries(entries, limits = TRANSCRIPT_SEGMENT_LIMITS) {
 
     if (
       (atNaturalBoundary && (comfortablySized || elapsed >= 8)) ||
-      (atNaturalBoundary && reachedIdeal) ||
       reachedGuardrail ||
       reachedHardGuardrail
     ) {
@@ -325,11 +355,14 @@ chrome.windows.getCurrent().then((w) => {
 
 function scheduleDigestRefresh() {
   // Small delay lets YouTube finish rendering the new video's title and
-  // description before we read them. Also collapses rapid-fire URL events
-  // into a single refresh.
-  clearTimeout(navigationRefreshTimer);
+  // description before we read them. checkCurrentTab re-reads the live tab
+  // URL when it runs, so a queued refresh already covers later events —
+  // rescheduling would only postpone it (the 250ms playback watchdog would
+  // otherwise starve it forever while a changed video keeps erroring).
+  if (navigationRefreshTimer) return;
   const generation = ++navigationGeneration;
   navigationRefreshTimer = setTimeout(() => {
+    navigationRefreshTimer = null;
     void checkCurrentTab(generation);
   }, 600);
 }
@@ -348,7 +381,7 @@ function panelIsShowingResults() {
  * refresh the digest when the video changed.
  */
 function handleFrontTabUrl(url) {
-  if (!(url || "").startsWith("https://www.youtube.com")) {
+  if (!HarborSites.hostSupported(url)) {
     // Start the position save, then close in this same event callback. Chrome
     // does not reliably honor window.close() after an asynchronous wait.
     void saveCurrentTranscriptViewState();
@@ -551,7 +584,7 @@ async function checkCurrentTab(expectedGeneration) {
       return;
     }
 
-    if (!tab.url.startsWith("https://www.youtube.com")) {
+    if (!HarborSites.hostSupported(tab.url)) {
       handleFrontTabUrl(tab.url);
       return;
     }
@@ -563,6 +596,7 @@ async function checkCurrentTab(expectedGeneration) {
       let nextChannelName = "";
       let nextVideoDescription = "";
       let nextVideoDuration = 0;
+      let nextMediaUrl = "";
 
       try {
         // Route through background script for reliable message passing
@@ -576,6 +610,7 @@ async function checkCurrentTab(expectedGeneration) {
           nextChannelName = result.response.channelName || "";
           nextVideoDescription = result.response.description || "";
           nextVideoDuration = result.response.duration || 0;
+          nextMediaUrl = result.response.mediaUrl || "";
         }
       } catch (e) {
         console.error("[Caption Harbor Panel] getVideoInfo error:", e);
@@ -583,11 +618,17 @@ async function checkCurrentTab(expectedGeneration) {
 
       if (!navigationIsCurrent(generation)) return;
       youtubeTabId = tab.id;
+      // Anchor the tab-event filter to the window actually hosting the bound
+      // tab. In some sidebar implementations windows.getCurrent() resolves to
+      // the panel itself rather than the browser window, which would silently
+      // drop every navigation event.
+      panelWindowId = tab.windowId;
       currentVideoUrl = tab.url;
       currentVideoTitle = nextVideoTitle;
       currentChannelName = nextChannelName;
       currentVideoDescription = nextVideoDescription;
       currentVideoDuration = nextVideoDuration;
+      currentMediaUrl = nextMediaUrl;
 
       await startDigest(videoId, tab.url, generation);
     } else {
@@ -600,28 +641,7 @@ async function checkCurrentTab(expectedGeneration) {
 }
 
 function extractVideoId(url) {
-  try {
-    const urlObj = new URL(url);
-
-    if (
-      urlObj.hostname.includes("youtube.com") &&
-      urlObj.searchParams.has("v")
-    ) {
-      return urlObj.searchParams.get("v");
-    }
-
-    if (urlObj.hostname === "youtu.be") {
-      return urlObj.pathname.slice(1);
-    }
-
-    if (urlObj.pathname.startsWith("/embed/")) {
-      return urlObj.pathname.split("/")[2];
-    }
-
-    return null;
-  } catch {
-    return null;
-  }
+  return HarborSites.detect(url)?.mediaId || null;
 }
 
 // ============================================================
@@ -678,6 +698,9 @@ async function startDigest(
     currentTranscriptText = cached.transcriptText;
     currentTranscriptTimestamped = cached.transcriptTimestamped;
     currentTranscriptLanguage = cached.transcriptLanguage || null;
+    currentTranscriptSource =
+      cached.transcriptSource || (cached.imported ? "imported" : null);
+    currentTranscriptAudioError = cached.audioError || null;
     isAnalysisLoading = false;
 
     // Restore semantic-segment translations from persistent storage.
@@ -728,6 +751,9 @@ async function startDigest(
   currentTranscriptText = null;
   currentTranscriptTimestamped = null;
   currentTranscriptLanguage = null;
+  currentTranscriptSource = null;
+  currentTranscriptAudioError = null;
+  updateTranscriptSourceBadge();
   isAnalysisLoading = false;
 
   if (currentVideoTitle || currentChannelName) {
@@ -749,7 +775,14 @@ async function startDigest(
       // An imported transcript takes precedence over a result arriving later.
       if (currentTranscript?.length) return;
       if (transcriptResult.pending) {
-        updateLoading("音频转录中", transcriptResult.message);
+        const parts = [transcriptResult.message];
+        if (typeof transcriptResult.progress === "number")
+          parts.push(`${Math.round(transcriptResult.progress * 100)}%`);
+        if (transcriptResult.nativeJob)
+          parts.push(
+            HarborUI.text("Closing this page stops the transcription."),
+          );
+        updateLoading("音频转录中", parts.filter(Boolean).join(" · "));
         await new Promise((resolve) => setTimeout(resolve, 5000));
         if (
           !navigationIsCurrent(generation) ||
@@ -760,12 +793,45 @@ async function startDigest(
       }
     } while (transcriptResult.pending);
   } catch (error) {
-    transcriptResult = { success: false, error: error.message };
+    transcriptResult = {
+      success: false,
+      error: error.message,
+      audioTaskUnconfirmed: Boolean(error?.audioTaskUnconfirmed),
+    };
   }
 
   if (!navigationIsCurrent(generation) || currentVideoId !== videoId) return;
 
   if (!transcriptResult.success) {
+    if (transcriptResult.audioTaskUnconfirmed) {
+      showError(
+        "No transcript found",
+        transcriptResult.message || transcriptResult.error,
+      );
+      document.getElementById("errorBtn").textContent =
+        HarborUI.text("Reset task");
+      errorAction = async () => {
+        errorAction = null;
+        await chrome.storage.local.remove([
+          `lens_job_${videoId}`,
+          `harbor_caption_${videoId}`,
+          `harbor_audio_${videoId}_groq`,
+          `harbor_audio_${videoId}_local`,
+        ]);
+        // The captions fallback cache carries audioFailedAt as a 24h
+        // cooldown. Keep the captions as a fallback but clear the cooldown
+        // so this retry actually attempts audio again.
+        const key = `digest_${videoId}`;
+        const cached = (await chrome.storage.local.get(key))[key];
+        if (cached?.audioFailedAt || cached?.audioError) {
+          delete cached.audioFailedAt;
+          delete cached.audioError;
+          await chrome.storage.local.set({ [key]: cached });
+        }
+        startDigest(videoId, videoUrl, generation);
+      };
+      return;
+    }
     if (transcriptResult.error === "NO_SUPADATA_KEY") {
       showError(
         "API key missing",
@@ -784,6 +850,8 @@ async function startDigest(
   currentTranscriptText = transcriptResult.transcriptText;
   currentTranscriptTimestamped = transcriptResult.transcriptTextTimestamped;
   currentTranscriptLanguage = transcriptResult.language || null;
+  currentTranscriptSource = transcriptResult.transcriptSource || null;
+  currentTranscriptAudioError = transcriptResult.audioError || null;
 
   // Render transcript immediately (no LLM needed)
   renderTranscript();
@@ -1146,7 +1214,79 @@ function hasNonCollapsedTextSelection() {
 }
 
 /**
- * Preserves normal row-click seeking while keeping text selection inert.
+ * Finds the word under a click point inside a transcript text span. Returns a
+ * Range covering the word, or null when the click landed on blank space,
+ * punctuation, or anywhere outside the text — those clicks seek instead.
+ */
+function transcriptWordRangeAtPoint(clientX, clientY, textSpan) {
+  const caret =
+    typeof document.caretRangeFromPoint === "function"
+      ? document.caretRangeFromPoint(clientX, clientY)
+      : null;
+  if (!caret || caret.startContainer?.nodeType !== Node.TEXT_NODE) return null;
+  const node = caret.startContainer;
+  if (!textSpan.contains(node)) return null;
+  const value = node.nodeValue || "";
+  const isWordChar = (ch) => Boolean(ch) && /[\p{L}\p{N}]/u.test(ch);
+
+  // The caret sits at the nearest glyph edge, which may not be the character
+  // actually under the pointer. Measure the neighbors and keep the one whose
+  // box contains the click — a click on a space stays blank and seeks.
+  let index = -1;
+  for (const i of [caret.startOffset - 1, caret.startOffset]) {
+    if (i < 0 || i >= value.length || !isWordChar(value[i])) continue;
+    const charRange = document.createRange();
+    charRange.setStart(node, i);
+    charRange.setEnd(node, i + 1);
+    const rect = charRange.getBoundingClientRect();
+    if (
+      clientX >= rect.left - 1 &&
+      clientX <= rect.right + 1 &&
+      clientY >= rect.top - 1 &&
+      clientY <= rect.bottom + 1
+    ) {
+      index = i;
+      break;
+    }
+  }
+  if (index < 0) return null;
+
+  const range = document.createRange();
+  // CJK text is not space-delimited, so a run of characters is ambiguous as a
+  // "word". Select the single character; users drag for a longer phrase.
+  if (/[㐀-鿿豈-﫿぀-ヿ가-힯]/.test(value[index])) {
+    range.setStart(node, index);
+    range.setEnd(node, index + 1);
+    return range;
+  }
+
+  // Latin words keep internal apostrophes and hyphens ("don't", "well-known").
+  const isJoiner = (ch) => ch === "'" || ch === "’" || ch === "-";
+  let start = index;
+  let end = index;
+  while (
+    start > 0 &&
+    (isWordChar(value[start - 1]) ||
+      (isJoiner(value[start - 1]) && isWordChar(value[start - 2])))
+  )
+    start -= 1;
+  while (
+    end < value.length &&
+    (isWordChar(value[end]) ||
+      (isJoiner(value[end]) && isWordChar(value[end + 1])))
+  )
+    end += 1;
+
+  if (end <= start) return null;
+  range.setStart(node, start);
+  range.setEnd(node, end);
+  return range;
+}
+
+/**
+ * Row clicks do one of two things: a click on a word selects it and opens the
+ * action toolbar (词义/概念/收藏/Note); a click on blank space, punctuation,
+ * or the timestamp seeks the video to that sentence.
  */
 function seekFromTranscriptEntryClick(event, seconds) {
   if (hasNonCollapsedTextSelection()) {
@@ -1155,7 +1295,48 @@ function seekFromTranscriptEntryClick(event, seconds) {
     return;
   }
 
+  const textSpan = event.target?.closest?.(
+    ".transcript-text, .transcript-copy",
+  );
+  const wordRange = textSpan
+    ? transcriptWordRangeAtPoint(event.clientX, event.clientY, textSpan)
+    : null;
+  if (wordRange) {
+    event.preventDefault();
+    event.stopPropagation();
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(wordRange);
+    presentTranscriptSelectionActions?.(wordRange);
+    return;
+  }
+
   seekTo(seconds);
+}
+
+/**
+ * Shows where the current transcript came from — real audio transcription,
+ * site captions, or an imported file — next to the Transcript heading so a
+ * captions fallback is never mistaken for an audio transcript.
+ */
+function updateTranscriptSourceBadge() {
+  const badge = document.getElementById("transcriptSourceBadge");
+  if (!badge) return;
+  const labels = {
+    audio: "Audio transcript",
+    captions: "Site captions",
+    imported: "Imported",
+  };
+  const label = labels[currentTranscriptSource];
+  badge.hidden = !label;
+  if (!label) return;
+  badge.dataset.source = currentTranscriptSource;
+  badge.textContent = HarborUI.text(label);
+  badge.title =
+    currentTranscriptSource === "captions" && currentTranscriptAudioError
+      ? HarborUI.text("Audio transcription failed; showing site captions.") +
+        `\n${currentTranscriptAudioError}`
+      : "";
 }
 
 function renderTranscript() {
@@ -1164,8 +1345,7 @@ function renderTranscript() {
   const transcriptList = document.getElementById("transcriptList");
   transcriptList.innerHTML = "";
 
-  const existingBadge = document.getElementById("transcriptSourceBadge");
-  if (existingBadge) existingBadge.remove();
+  updateTranscriptSourceBadge();
 
   // Group entries using smart sentence-boundary + time-guardrail logic
   const grouped = groupTranscriptEntries(currentTranscript);
@@ -1447,7 +1627,7 @@ function copyTranscript() {
 
 function exportTranscript() {
   const transcriptContent = getDisplayedTranscriptText();
-  const videoUrl = `https://youtube.com/watch?v=${currentVideoId}`;
+  const videoUrl = currentVideoUrl || HarborSites.mediaUrl(currentVideoId);
 
   let exportText = "";
   exportText += `TRANSCRIPT\n`;
@@ -1602,6 +1782,13 @@ async function triggerAnalysis() {
     return;
 
   isAnalysisLoading = true;
+  const videoId = currentVideoId;
+  const transcript = currentTranscript;
+  const generation = navigationGeneration;
+  const isCurrent = () =>
+    videoId === currentVideoId &&
+    transcript === currentTranscript &&
+    navigationIsCurrent(generation);
 
   // Show loading indicators in the Overview tab
   const chapterList = document.getElementById("chapterList");
@@ -1623,6 +1810,7 @@ async function triggerAnalysis() {
       videoDescription: currentVideoDescription,
       videoDuration: currentVideoDuration,
     });
+    if (!isCurrent()) return;
 
     if (!analysisResult.success) {
       if (chapterList)
@@ -1636,14 +1824,15 @@ async function triggerAnalysis() {
     highlightMomentsOnPage(currentAnalysis.keyMoments);
 
     // Save to cache now that we have analysis
-    await saveToCache(currentVideoId);
+    await saveToCache(videoId);
   } catch (error) {
+    if (!isCurrent()) return;
     console.error("[Caption Harbor Panel] Analysis error:", error);
     if (chapterList)
       chapterList.innerHTML = `<li class="chapter-item" style="color: var(--accent); border: none;">Error: ${escapeHtml(error.message)}</li>`;
+  } finally {
+    if (isCurrent()) isAnalysisLoading = false;
   }
-
-  isAnalysisLoading = false;
 }
 
 // ============================================================
@@ -1665,6 +1854,10 @@ async function seekTo(seconds) {
   try {
     await seekBoundPlayer(youtubeTabId, currentVideoId, Number(seconds));
   } catch (error) {
+    if (error?.videoChanged) {
+      scheduleDigestRefresh();
+      return;
+    }
     console.error("[Caption Harbor Panel] seekTo error:", error);
     if (typeof lensStatus === "function") lensStatus(error.message);
   }
@@ -1847,52 +2040,57 @@ function setupExplainFeature() {
     event.stopPropagation();
   });
 
+  // Positions the toolbar under a Range and remembers its text/timestamp.
+  // Used both by real selections and by a click that selects a single word.
+  presentTranscriptSelectionActions = (range) => {
+    const text = range?.toString().trim() || "";
+    if (
+      !text ||
+      !transcriptList.contains(range.startContainer) ||
+      !transcriptList.contains(range.endContainer)
+    )
+      return false;
+
+    selectedText = text;
+    // The first selected row supplies the timestamp when the selection spans
+    // more than one row.
+    const startElement =
+      range.startContainer.nodeType === 1
+        ? range.startContainer
+        : range.startContainer.parentElement;
+    const selectedRow = startElement?.closest(".transcript-entry");
+    const rowSeconds = Number(selectedRow?.dataset.seconds);
+    selectedTimestamp = Number.isFinite(rowSeconds) ? rowSeconds : 0;
+
+    // Set the final coordinates while the toolbar is still hidden. If it
+    // becomes visible first, Chrome paints it at its default left edge for
+    // one frame before moving it to the selection center.
+    const rect = range.getBoundingClientRect();
+    tooltip.style.top = `${rect.bottom + window.scrollY + 8}px`;
+    tooltip.style.left = `${rect.left + rect.width / 2}px`;
+    tooltip.style.display = "flex";
+    const bounds = tooltip.getBoundingClientRect();
+    const center = Math.max(
+      bounds.width / 2 + 10,
+      Math.min(innerWidth - bounds.width / 2 - 10, rect.left + rect.width / 2),
+    );
+    tooltip.style.left = `${center}px`;
+    if (bounds.bottom > innerHeight - 10)
+      tooltip.style.top = `${Math.max(10, rect.top - bounds.height - 8)}px`;
+    return true;
+  };
+
   // Listen for text selection
   document.addEventListener(
     "mouseup",
     () => {
       const selection = window.getSelection();
-      const text = selection?.toString().trim() || "";
       const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
-
-      // Both ends must be inside the transcript. The first selected row
-      // supplies the timestamp when the selection spans more than one row.
-      const isInTranscript = Boolean(
-        range &&
-        transcriptList.contains(range.startContainer) &&
-        transcriptList.contains(range.endContainer),
-      );
-
-      // Allow any selection length.
-      if (text.length > 0 && isInTranscript) {
-        selectedText = text;
-        const startElement =
-          range.startContainer.nodeType === 1
-            ? range.startContainer
-            : range.startContainer.parentElement;
-        const selectedRow = startElement?.closest(".transcript-entry");
-        const rowSeconds = Number(selectedRow?.dataset.seconds);
-        selectedTimestamp = Number.isFinite(rowSeconds) ? rowSeconds : 0;
-
-        // Set the final coordinates while the toolbar is still hidden. If it
-        // becomes visible first, Chrome paints it at its default left edge for
-        // one frame before moving it to the selection center.
-        const rect = range.getBoundingClientRect();
-        tooltip.style.top = `${rect.bottom + window.scrollY + 8}px`;
-        tooltip.style.left = `${rect.left + rect.width / 2}px`;
-        tooltip.style.display = "flex";
-        const bounds = tooltip.getBoundingClientRect();
-        const center = Math.max(
-          bounds.width / 2 + 10,
-          Math.min(
-            innerWidth - bounds.width / 2 - 10,
-            rect.left + rect.width / 2,
-          ),
-        );
-        tooltip.style.left = `${center}px`;
-        if (bounds.bottom > innerHeight - 10)
-          tooltip.style.top = `${Math.max(10, rect.top - bounds.height - 8)}px`;
-      } else {
+      if (
+        !range ||
+        selection.isCollapsed ||
+        !presentTranscriptSelectionActions(range)
+      ) {
         tooltip.style.display = "none";
       }
     },
@@ -2014,14 +2212,16 @@ async function showExplanation(selectedText) {
       videoTitle: currentVideoTitle,
     });
 
-    const contentDiv = document.getElementById("explanationContent");
+    if (!modal.isConnected) return;
+    const contentDiv = modal.querySelector("#explanationContent");
     if (result.success) {
       contentDiv.innerHTML = `<div class="explain-text">${escapeHtml(result.explanation).replace(/\n\n/g, "</p><p>").replace(/\n/g, "<br>")}</div>`;
     } else {
       contentDiv.innerHTML = `<div class="explain-error">Failed to get explanation: ${escapeHtml(result.error)}</div>`;
     }
   } catch (error) {
-    const contentDiv = document.getElementById("explanationContent");
+    if (!modal.isConnected) return;
+    const contentDiv = modal.querySelector("#explanationContent");
     contentDiv.innerHTML = `<div class="explain-error">Error: ${escapeHtml(error.message)}</div>`;
   }
 }
@@ -2053,7 +2253,7 @@ function getTranscriptContext(selectedText) {
  * Cache expires after 30 days. Oldest entries evicted when > 20 videos cached.
  */
 async function saveToCache(videoId) {
-  if (!videoId || !currentTranscript) return;
+  if (!videoId || videoId !== currentVideoId || !currentTranscript) return;
 
   try {
     // Persist semantic-segment translations for this video.
@@ -2070,7 +2270,12 @@ async function saveToCache(videoId) {
       }
     }
 
-    const cacheData = {
+    // Spread the existing entry so provenance fields survive: sourceUrl,
+    // transcriptSource, audioFailedAt and imported are written by the
+    // transcript pipeline and must not be dropped when the panel re-saves.
+    const cacheKey = `digest_${videoId}`;
+    // Capture this video's state before storage yields to a navigation.
+    const snapshot = {
       analysis: currentAnalysis, // May be null if not yet analyzed
       transcript: currentTranscript,
       transcriptText: currentTranscriptText,
@@ -2082,6 +2287,8 @@ async function saveToCache(videoId) {
       interfaceCache: interfaceCacheForVideo,
       timestamp: Date.now(),
     };
+    const existing = (await chrome.storage.local.get(cacheKey))[cacheKey] || {};
+    const cacheData = { ...existing, ...snapshot };
 
     await chrome.storage.local.set({ [`digest_${videoId}`]: cacheData });
     debugLog(
@@ -2159,6 +2366,39 @@ async function loadFromCache(videoId) {
       return null;
     }
 
+    // The panel applies the same staleness rules as the transcript pipeline:
+    // a podcast transcript is only valid for the exact audio rendition it
+    // was made from, a site-captions transcript is stale while the user
+    // prefers original-audio transcription, and a required transcript
+    // language rejects caches in any other language. Without this a stale
+    // (e.g. wrong-language) transcript would be served for 30 days before
+    // lensFetchTranscript ever ran.
+    const site =
+      typeof HarborSites === "object"
+        ? HarborSites.siteOf(videoId) || "youtube"
+        : "youtube";
+    if (typeof harborDigestUsable === "function") {
+      const serviceStore = await chrome.storage.local.get([
+        "harbor_services",
+        "lens_settings",
+      ]);
+      const config = harborTranscriptConfig(serviceStore);
+      let renditionUrl = null;
+      if (site === "apple") {
+        const media = await harborResolveAppleRendition(videoId);
+        if (typeof media?.renditionUrl === "string")
+          renditionUrl = media.renditionUrl;
+      }
+      if (
+        !harborDigestUsable(cached, {
+          audioFirst: harborAudioFirst(videoId, config),
+          renditionUrl,
+          languageFilter: config.requiredTranscriptLanguage,
+        })
+      )
+        return null;
+    }
+
     return cached;
   } catch (error) {
     console.error("Cache load error:", error);
@@ -2184,11 +2424,15 @@ async function updateCache() {
  * @param {string|null} videoId - Filter by video ID, or null for all notes
  */
 async function loadNotes(videoId) {
+  const request = ++notesRequestGeneration;
+  const boundVideoId = currentVideoId;
   try {
     const result = await chrome.runtime.sendMessage({
       action: "getNotes",
       videoId: videoId,
     });
+    if (request !== notesRequestGeneration || boundVideoId !== currentVideoId)
+      return;
 
     if (result.success) {
       currentNotes = result.notes || [];
@@ -2417,6 +2661,12 @@ async function playbackTrackingTick(forceScroll = false) {
     highlightActiveEntry(result.currentTime);
     return forceScroll ? scrollToActiveEntry() : true;
   } catch (error) {
+    if (error?.videoChanged) {
+      // The bound tab navigated to a different video. Tab events normally
+      // catch this, but self-heal here in case one was missed.
+      scheduleDigestRefresh();
+      return false;
+    }
     if (forceScroll && typeof lensStatus === "function") {
       lensStatus(error.message);
       document.getElementById("lens-status").dataset.playbackError = "true";
@@ -2806,8 +3056,7 @@ function renderTranscriptModeRows(segments, mode) {
   if (!transcriptList) return [];
   transcriptList.innerHTML = "";
 
-  const existingBadge = document.getElementById("transcriptSourceBadge");
-  if (existingBadge) existingBadge.remove();
+  updateTranscriptSourceBadge();
 
   const rows = [];
   segments.forEach((segment, index) => {
@@ -3094,4 +3343,5 @@ globalThis.__YTD_TRANSCRIPT_TESTING__ = {
   getNavigationUrl,
   renderSubtitleInlineMarkup,
   renderTranscriptSegmentContent,
+  transcriptWordRangeAtPoint,
 };

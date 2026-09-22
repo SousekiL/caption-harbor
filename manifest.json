@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Caption Harbor",
-  "version": "2.1.4",
+  "version": "2.1.5",
   "minimum_chrome_version": "116",
-  "description": "Learn from YouTube with bilingual captions, audio transcription, Eudic vocabulary, AI questions, and notes.",
+  "description": "Bilingual captions, audio transcription, vocabulary, AI questions, and notes for YouTube, Bilibili, and Apple Podcasts.",
   "permissions": [
     "sidePanel",
     "storage",
@@ -13,6 +13,9 @@
   ],
   "host_permissions": [
     "https://www.youtube.com/*",
+    "https://www.bilibili.com/*",
+    "https://bilibili.com/*",
+    "https://podcasts.apple.com/*",
     "https://api.supadata.ai/*",
     "https://api.deepseek.com/*",
     "https://api.frdic.com/*"
@@ -38,9 +41,13 @@
   "content_scripts": [
     {
       "matches": [
-        "https://www.youtube.com/*"
+        "https://www.youtube.com/*",
+        "https://www.bilibili.com/*",
+        "https://bilibili.com/*",
+        "https://podcasts.apple.com/*"
       ],
       "js": [
+        "sites.js",
         "content.js"
       ],
       "run_at": "document_idle"

@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location('native_host', ROOT/'native'/'host.py')
@@ -50,6 +51,13 @@ class HostTest(unittest.TestCase):
     def test_arbitrary_actions_do_not_read_credentials(self):
         result=host.handle({'action':'readFile','path':'/etc/passwd'},self.config)
         self.assertFalse(result['success'])
+
+    def test_audio_resolve_is_forwarded_without_reading_credentials(self):
+        message = {'action':'audioResolve','url':'https://example.com/episode.mp3'}
+        worker = SimpleNamespace(handle=lambda request, folder: {'success':True,'url':request['url']})
+        self.env.unlink()
+        with patch.dict(sys.modules, {'audio_worker':worker}):
+            self.assertEqual(host.handle(message,self.config), {'success':True,'url':message['url']})
 
     def test_protocol_and_origin_validation(self):
         (self.folder/'host.py').write_text((ROOT/'native'/'host.py').read_text())

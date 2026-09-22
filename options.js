@@ -21,7 +21,7 @@ const YTD_OPTIONS = (() => {
       providerBadge: "Supported in this version",
       deepseekApiKeyLabel: "DeepSeek API key",
       deepseekHelp:
-        "Caption Harbor uses DeepSeek V4 Flash for overviews, explanations, translation, and note polishing. ",
+        "Caption Harbor uses DeepSeek Flash for overviews, explanations, translation, and note polishing. ",
       deepseekLink: "Create a DeepSeek API key",
       deepseekHelpSuffix: ".",
       privacyNote:
@@ -90,7 +90,7 @@ const YTD_OPTIONS = (() => {
       providerBadge: "当前版本支持",
       deepseekApiKeyLabel: "DeepSeek API 密钥",
       deepseekHelp:
-        "Caption Harbor 使用 DeepSeek V4 Flash 生成概览、解释内容、翻译字幕和润色笔记。",
+        "Caption Harbor 使用 DeepSeek Flash 生成概览、解释内容、翻译字幕和润色笔记。",
       deepseekLink: "创建 DeepSeek API 密钥",
       deepseekHelpSuffix: "。",
       privacyNote:
@@ -452,7 +452,7 @@ const YTD_OPTIONS = (() => {
       try {
         const existing = (await storage.get("lens_settings")).lens_settings || {};
         const extra = root.HarborServiceSettings;
-        await storage.set({ [settingsApi.STORAGE_KEY]: settings, ...(extra ? {harbor_services:extra.read(),lens_settings:{...existing,autoTranscribe:extra.enabled()}} : {}) });
+        await storage.set({ [settingsApi.STORAGE_KEY]: settings, ...(extra ? {harbor_services:extra.read(),lens_settings:{...existing,autoTranscribe:extra.enabled(),preferOriginalAudio:!!extra.originalAudio?.(),requiredTranscriptLanguage:extra.requiredLanguage?.()||"auto"}} : {}) });
         setStatus(saveStatus, "saved");
       } catch (_error) {
         setStatus(saveStatus, "saveFailed");
@@ -493,6 +493,7 @@ const YTD_OPTIONS = (() => {
       await storage.clear();
       await persistPreferredLanguage(storage, currentLanguage);
       await loadSettings();
+      root.dispatchEvent(new root.Event("harbor-data-reset"));
       setStatus(dataStatus, "allDataDeleted");
     }
 

@@ -19,6 +19,33 @@ const debugLog = (...args) => {
 };
 
 // ============================================================
+// SITE DETECTION (YouTube / Bilibili / Apple Podcasts)
+// ============================================================
+
+function currentMedia() {
+  return HarborSites.detect(location.href);
+}
+
+function currentMediaId() {
+  return currentMedia()?.mediaId || null;
+}
+
+function currentSite() {
+  return currentMedia()?.site || null;
+}
+
+// The primary playable element on the page. Bilibili uses a plain <video>;
+// Apple Podcasts may expose an <audio> only while playing.
+function findMediaElement() {
+  return (
+    document.querySelector("video.html5-main-video") ||
+    document.querySelector(".bpx-player-video video") ||
+    document.querySelector("video") ||
+    document.querySelector("audio")
+  );
+}
+
+// ============================================================
 // GLOBAL STATE
 // ============================================================
 
@@ -50,8 +77,8 @@ function init() {
   injectDigestButton();
   tryInjectNoteButton();
 
-  // Also set up an observer to handle YouTube's dynamic content loading
-  // (YouTube is an SPA, so elements appear/disappear as you navigate)
+  // Also set up an observer to handle dynamic content loading
+  // (YouTube, Bilibili, and Apple Podcasts are all SPAs)
   setupButtonObserver();
   setupDigestButtonResizeListener();
 }
@@ -62,7 +89,10 @@ function init() {
  * after navigation, so a single immediate attempt can miss it.
  */
 function tryInjectNoteButton() {
-  if (!window.location.pathname.includes("/watch")) return;
+  const media = currentMedia();
+  // Apple Podcasts has no video surface to overlay — notes come from the
+  // side panel / keyboard shortcut there.
+  if (!media || media.site === "apple") return;
 
   // Clear any existing retry so we don't stack timers
   if (ytdNoteButtonRetryTimer) {
@@ -75,9 +105,7 @@ function tryInjectNoteButton() {
 
   function attempt() {
     attempts++;
-    const playerContainer = document.querySelector(
-      "#movie_player.html5-video-player, #movie_player, .html5-video-player",
-    );
+    const playerContainer = findPlayerContainer();
 
     if (playerContainer) {
       injectNoteButton();
@@ -129,8 +157,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   );
 
   if (message.action === "lensPlayer") {
-    const video = document.querySelector("video.html5-main-video");
-    const videoId = new URL(location.href).searchParams.get("v");
+    const video = findMediaElement();
+    const videoId = currentMediaId();
     if (!video || videoId !== message.videoId) {
       sendResponse({ success: false, error: "视频已切换" });
       return false;
@@ -175,9 +203,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.action === "getCurrentTime") {
-    const video = document.querySelector("video.html5-main-video");
-    const videoId = new URL(location.href).searchParams.get("v");
-    if (!video || (message.videoId && message.videoId !== videoId)) {
+    const video = findMediaElement();
+    const videoId = currentMediaId();
+    if (
+      !video ||
+      !Number.isFinite(video.currentTime) ||
+      (message.videoId && message.videoId !== videoId)
+    ) {
       sendResponse({ success: false, error: "视频播放器尚未就绪或已切换" });
       return false;
     }
@@ -191,13 +223,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.action === "seekTo") {
     // Jump the video to a specific timestamp
-    const videoId = new URLSearchParams(window.location.search).get("v");
+    const videoId = currentMediaId();
     if (message.videoId && message.videoId !== videoId) {
       sendResponse({ success: false, error: "Video changed" });
       return false;
     }
     debugLog("[Caption Harbor Content] Seeking to:", message.seconds);
-    seekToTimestamp(message.seconds);
+    if (!seekToTimestamp(message.seconds)) {
+      sendResponse({ success: false, error: "视频播放器尚未就绪" });
+      return false;
+    }
     sendResponse({ success: true });
     return false;
   }
@@ -241,7 +276,16 @@ function isVisibleDigestHost(element) {
  * viewer can actually see, so inspect every candidate and resolve the native
  * button group inside the visible action row for the current video.
  */
-function findDigestButtonHost() {
+function findDigestButtonHost(site = "youtube") {
+  if (site === "bilibili") {
+    // The ops row (like/coin/favorite) under the player.
+    const toolbar = document.querySelector(
+      ".video-toolbar .toolbar-left, #arc_toolbar_report .video-toolbar-left, .video-toolbar",
+    );
+    return isVisibleDigestHost(toolbar) ? toolbar : null;
+  }
+  if (site === "apple") return null; // uses the floating button instead
+
   const primaryActionRows = Array.from(
     document.querySelectorAll("ytd-watch-metadata #actions-inner"),
   );
@@ -270,6 +314,42 @@ function findDigestButtonHost() {
         (candidate.closest("ytd-watch-metadata") ||
           candidate.closest("#primary")),
     ) || null
+  );
+}
+
+/**
+ * Gives the player container a positioning context for overlay buttons.
+ * A :where() rule has zero specificity, so it applies only when the site
+ * leaves position untouched and can never override the site's own rules —
+ * Bilibili's fullscreen and mini-player modes reposition the container via
+ * classes, and an inline style here used to silently win over
+ * position:fixed and break them.
+ */
+function ensurePlayerOverlayBase(playerContainer) {
+  if (!document.getElementById("caption-harbor-posfix")) {
+    const posfix = document.createElement("style");
+    posfix.id = "caption-harbor-posfix";
+    posfix.textContent =
+      ":where(.caption-harbor-posfix){position:relative}";
+    document.head.appendChild(posfix);
+  }
+  playerContainer.classList.add("caption-harbor-posfix");
+}
+
+// Video player container used for the floating Note button overlay.
+function findPlayerContainer() {
+  const site = currentSite();
+  if (site === "bilibili")
+    // Must be the INNER container: #bilibili-player is the ancestor Bilibili
+    // repositions with position:fixed for web fullscreen — touching it breaks
+    // fullscreen. .bpx-player-container stays a plain child throughout.
+    return (
+      document.querySelector(".bpx-player-container") ||
+      document.querySelector("#bilibili-player, .bpx-player")
+    );
+  if (site !== "youtube") return null;
+  return document.querySelector(
+    "#movie_player.html5-video-player, #movie_player, .html5-video-player",
   );
 }
 
@@ -349,17 +429,10 @@ function injectDigestButton() {
     document.querySelectorAll("#ytd-digest-button"),
   );
 
-  if (!window.location.pathname.includes("/watch")) {
+  const media = currentMedia();
+  if (!media) {
     existingButtons.forEach((button) => button.remove());
     ytdDigestButton = null;
-    return false;
-  }
-
-  const actionsContainer = findDigestButtonHost();
-  if (!actionsContainer) {
-    debugLog(
-      "[Caption Harbor Content] Visible actions container not found yet",
-    );
     return false;
   }
 
@@ -369,13 +442,70 @@ function injectDigestButton() {
 
   if (!digestButton) {
     existingButtons.forEach((button) => button.remove());
-    existingButtons.length = 0;
     digestButton = createDigestButton();
   }
-
   existingButtons.forEach((button) => {
     if (button !== digestButton) button.remove();
   });
+
+  // Apple Podcasts has no stable action row — float above its playback bar.
+  if (media.site === "apple") {
+    digestButton.style.position = "fixed";
+    digestButton.style.right = "24px";
+    digestButton.style.bottom = "96px";
+    digestButton.style.zIndex = "2147483646";
+    digestButton.style.marginRight = "0";
+    digestButton.style.boxShadow = "0 6px 20px rgba(0,0,0,0.3)";
+    if (digestButton.parentElement !== document.body)
+      document.body.appendChild(digestButton);
+    return true;
+  }
+  digestButton.style.position = "";
+  digestButton.style.right = "";
+  digestButton.style.bottom = "";
+  digestButton.style.zIndex = "";
+  digestButton.style.marginRight = "";
+  digestButton.style.boxShadow = "";
+
+  // Bilibili's ops row is owned by the site's own renderer — a foreign child
+  // inside .video-toolbar crashes its reconciliation (HierarchyRequestError)
+  // and leaves web fullscreen dead. Overlay the button on the player instead;
+  // the player container already tolerates our Note button.
+  if (media.site === "bilibili") {
+    const playerContainer = findPlayerContainer();
+    if (!playerContainer) {
+      debugLog(
+        "[Caption Harbor Content] Player container not found yet",
+      );
+      return false;
+    }
+    ensurePlayerOverlayBase(playerContainer);
+    digestButton.dataset.overlay = "1";
+    digestButton.style.position = "absolute";
+    digestButton.style.top = "16px";
+    digestButton.style.left = "16px";
+    digestButton.style.height = "auto";
+    digestButton.style.padding = "9px 16px";
+    digestButton.style.borderRadius = "999px";
+    digestButton.style.zIndex = "9999";
+    digestButton.style.marginRight = "0";
+    digestButton.style.boxShadow = "0 4px 14px rgba(0,0,0,0.3)";
+    digestButton.style.opacity = "0";
+    digestButton.style.pointerEvents = "none";
+    digestButton.style.transition =
+      "opacity 0.18s ease, background 0.18s ease, transform 0.18s ease";
+    if (digestButton.parentElement !== playerContainer)
+      playerContainer.appendChild(digestButton);
+    return true;
+  }
+
+  const actionsContainer = findDigestButtonHost(media.site);
+  if (!actionsContainer) {
+    debugLog(
+      "[Caption Harbor Content] Visible actions container not found yet",
+    );
+    return false;
+  }
 
   if (digestButton.parentElement !== actionsContainer) {
     // YouTube turns #actions-inner into a vertical flex column at narrow
@@ -418,7 +548,7 @@ function setupButtonObserver() {
 
   digestButtonObserver = new MutationObserver(() => {
     // Check if we need to inject the buttons
-    if (window.location.pathname.includes("/watch")) {
+    if (currentMedia()) {
       scheduleDigestButtonReconciliation();
       if (!ytdNoteButton || !ytdNoteButton.isConnected) {
         tryInjectNoteButton();
@@ -443,8 +573,9 @@ function setupButtonObserver() {
  * after the cursor stays still for more than 2 seconds or leaves the player.
  */
 function injectNoteButton() {
-  // Don't inject if we're not on a video page
-  if (!window.location.pathname.includes("/watch")) return;
+  const media = currentMedia();
+  // Only inject on media pages with a real player surface.
+  if (!media || media.site === "apple") return;
 
   // Don't inject if button already exists and is properly tracked.
   // If a stale button exists (e.g., from a previous content-script instance),
@@ -457,13 +588,9 @@ function injectNoteButton() {
     existingButton.remove();
   }
 
-  // Find the video player container. YouTube rebuilds this dynamically, so
+  // Find the video player container. Sites rebuild this dynamically, so
   // we try the most common selectors.
-  const playerContainer = document.querySelector(
-    "#movie_player.html5-video-player, " +
-      "#movie_player, " +
-      ".html5-video-player",
-  );
+  const playerContainer = findPlayerContainer();
 
   if (!playerContainer) {
     debugLog(
@@ -472,13 +599,9 @@ function injectNoteButton() {
     return;
   }
 
-  // Ensure the player container has relative positioning for absolute children
-  if (
-    window.getComputedStyle(playerContainer).position === "static" ||
-    !playerContainer.style.position
-  ) {
-    playerContainer.style.position = "relative";
-  }
+  // Positioning hint for the absolute note button (zero-specificity, see the
+  // helper — an inline style here used to break Bilibili's fullscreen modes).
+  ensurePlayerOverlayBase(playerContainer);
 
   debugLog("[Caption Harbor Content] Injecting note button");
 
@@ -563,16 +686,26 @@ function injectNoteButton() {
   debugLog("[Caption Harbor Content] Note button injected");
 }
 
+function playerOverlayButtons() {
+  const overlayDigest =
+    ytdDigestButton && ytdDigestButton.dataset.overlay === "1"
+      ? ytdDigestButton
+      : null;
+  return [ytdNoteButton, overlayDigest].filter(Boolean);
+}
+
 function showNoteButton() {
-  if (!ytdNoteButton) return;
-  ytdNoteButton.style.opacity = "1";
-  ytdNoteButton.style.pointerEvents = "auto";
+  for (const button of playerOverlayButtons()) {
+    button.style.opacity = "1";
+    button.style.pointerEvents = "auto";
+  }
 }
 
 function hideNoteButton() {
-  if (!ytdNoteButton) return;
-  ytdNoteButton.style.opacity = "0";
-  ytdNoteButton.style.pointerEvents = "none";
+  for (const button of playerOverlayButtons()) {
+    button.style.opacity = "0";
+    button.style.pointerEvents = "none";
+  }
 }
 
 function resetNoteButtonTimer() {
@@ -588,7 +721,7 @@ function resetNoteButtonTimer() {
  * in an input field.
  */
 function handleNoteKeyboardShortcut(e) {
-  if (!window.location.pathname.includes("/watch")) return;
+  if (!currentMedia()) return;
   if (e.key !== "n" && e.key !== "N") return;
 
   // Ignore if the user is typing in an input/textarea/contenteditable
@@ -618,16 +751,32 @@ function handleNoteKeyboardShortcut(e) {
 async function saveCurrentNote() {
   debugLog("[Caption Harbor] Saving note");
 
-  const video = document.querySelector("video.html5-main-video");
-  if (!video) {
-    console.error("[Caption Harbor] No video element found");
+  let video = findMediaElement();
+  let mediaSeconds = Number.isFinite(video?.currentTime)
+    ? video.currentTime
+    : null;
+
+  // Apple Podcasts may keep its player only in the page's main world
+  // (MusicKit) — the background worker can read it there.
+  if (mediaSeconds === null) {
+    try {
+      const state = await chrome.runtime.sendMessage({
+        action: "getPlaybackState",
+        videoId: currentMediaId(),
+      });
+      if (state?.success && Number.isFinite(state.currentTime))
+        mediaSeconds = state.currentTime;
+    } catch {}
+  }
+  if (mediaSeconds === null) {
+    console.error("[Caption Harbor] No playable media found");
     return;
   }
 
   // Go back 3 seconds to capture what was just said (user reacts after hearing it)
-  const currentTime = Math.max(0, Math.floor(video.currentTime) - 3);
+  const currentTime = Math.max(0, Math.floor(mediaSeconds) - 3);
   const videoInfo = extractVideoInfo();
-  const videoId = new URLSearchParams(window.location.search).get("v");
+  const videoId = currentMediaId();
 
   const noteButton = ytdNoteButton;
   const originalContent = noteButton ? noteButton.innerHTML : "";
@@ -751,7 +900,44 @@ function showNoteSavedToast(note) {
  * These are just sitting in the HTML — we grab them from the DOM elements.
  */
 function extractVideoInfo() {
-  // The video title is in an h1 element inside the #title container
+  const site = currentSite();
+
+  if (site === "bilibili") {
+    const video = findMediaElement();
+    return {
+      title:
+        document
+          .querySelector("h1.video-title, .video-title, h1[title]")
+          ?.textContent?.trim() || "",
+      channelName:
+        document
+          .querySelector(".up-name, .up-info-container .up-name, .username")
+          ?.textContent?.trim() || "",
+      duration: Number.isFinite(video?.duration) ? video.duration : 0,
+      description:
+        document
+          .querySelector(".desc-info-text, .basic-desc-info, #v_desc")
+          ?.textContent?.trim() || "",
+    };
+  }
+
+  if (site === "apple") {
+    // The episode header renders the title in an h1; rich metadata arrives
+    // through the background's catalog-API read (getVideoInfo relay).
+    return {
+      title:
+        document.querySelector("h1")?.textContent?.trim() ||
+        document.title.replace(/\s*[-–|].*$/, "").trim(),
+      channelName:
+        document
+          .querySelector('[class*="subtitle"], .product-header__subtitle')
+          ?.textContent?.trim() || "",
+      duration: 0,
+      description: "",
+    };
+  }
+
+  // YouTube: title in an h1 element inside the #title container
   const titleElement = document.querySelector(
     "h1.ytd-watch-metadata yt-formatted-string, #title h1 yt-formatted-string",
   );
@@ -814,10 +1000,10 @@ function highlightKeyMoments(moments, videoDuration) {
  * which is the standard HTML5 way to seek in a video.
  */
 function seekToTimestamp(seconds) {
-  const video = document.querySelector("video.html5-main-video");
-  if (!video) {
-    console.error("[Caption Harbor Content] No video element found for seek");
-    return;
+  const video = findMediaElement();
+  if (!video || !Number.isFinite(video.currentTime)) {
+    debugLog("[Caption Harbor Content] No media element found for seek");
+    return false;
   }
 
   debugLog("[Caption Harbor Content] Seeking to:", seconds);
@@ -826,6 +1012,7 @@ function seekToTimestamp(seconds) {
   if (video.paused) {
     video.play().catch(() => {}); // Ignore autoplay errors
   }
+  return true;
 }
 
 function escapeHtmlForContent(text) {
@@ -886,18 +1073,18 @@ document.addEventListener("yt-navigate-finish", () => {
   }, 500);
 });
 
-// Loop against media time, with automatic reset on YouTube SPA navigation.
+// Loop against media time, with automatic reset on SPA navigation.
 let harborLoop = null;
 document.addEventListener("yt-navigate-start", () => {
   harborLoop = null;
 });
 setInterval(() => {
   if (!harborLoop) return;
-  if (new URL(location.href).searchParams.get("v") !== harborLoop.videoId) {
+  if (currentMediaId() !== harborLoop.videoId) {
     harborLoop = null;
     return;
   }
-  const video = document.querySelector("video.html5-main-video");
+  const video = findMediaElement();
   if (
     video &&
     !video.paused &&
@@ -906,3 +1093,17 @@ setInterval(() => {
   )
     video.currentTime = harborLoop.start;
 }, 100);
+
+// Bilibili and Apple Podcasts are SPAs without a yt-navigate-finish event.
+// Poll the URL so media changes still re-trigger button injection and reset
+// per-page state.
+let harborLastHref = location.href;
+setInterval(() => {
+  if (location.href === harborLastHref) return;
+  harborLastHref = location.href;
+  harborLoop = null;
+  setTimeout(() => {
+    injectDigestButton();
+    tryInjectNoteButton();
+  }, 600);
+}, 800);

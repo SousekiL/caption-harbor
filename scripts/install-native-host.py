@@ -23,13 +23,13 @@ def browser_profile(browser, home=None, platform=None):
     platform = sys.platform if platform is None else platform
     if platform == 'darwin':
         base = home/'Library'/'Application Support'
-        locations = {'browseros':base/'BrowserOS', 'browseros-neo':base/'BrowserClaw', 'chrome':base/'Google'/'Chrome'}
+        locations = {'browseros':base/'BrowserOS', 'browseros-neo':base/'BrowserClaw', 'chrome':base/'Google'/'Chrome', 'edge':base/'Microsoft Edge'}
     else:
         base = home/'.config'
-        locations = {'browseros':base/'browseros', 'browseros-neo':base/'browserclaw', 'chrome':base/'google-chrome'}
+        locations = {'browseros':base/'browseros', 'browseros-neo':base/'browserclaw', 'chrome':base/'google-chrome', 'edge':base/'microsoft-edge'}
     if browser != 'auto':
         return locations[browser]
-    for name in ('browseros', 'chrome', 'browseros-neo'):
+    for name in ('browseros', 'chrome', 'edge', 'browseros-neo'):
         if locations[name].is_dir():
             return locations[name]
     raise ValueError('No supported browser profile found. Specify --browser or --profile-dir.')
@@ -40,7 +40,7 @@ def main():
     parser.add_argument('--extension-id', help='ID shown at chrome://extensions; defaults to this checkout path')
     parser.add_argument('--config-dir', type=Path, default=Path.home()/'.config'/'caption-harbor')
     parser.add_argument('--profile-dir', type=Path, help='Custom browser user-data directory')
-    parser.add_argument('--browser', choices=['auto', 'browseros', 'browseros-neo', 'chrome'], default='auto', help='Browser whose native host directory to register')
+    parser.add_argument('--browser', choices=['auto', 'browseros', 'browseros-neo', 'chrome', 'edge'], default='auto', help='Browser whose native host directory to register')
     args = parser.parse_args()
     if sys.platform not in ('darwin', 'linux'):
         parser.error('The native bridge installer currently supports macOS and Linux.')
@@ -52,6 +52,16 @@ def main():
     folder.mkdir(parents=True, exist_ok=True, mode=0o700)
     folder.chmod(0o700)
     origins = [f'chrome-extension://{identifier}/']
+    # Keep origins granted by earlier installs (e.g. a different extension ID
+    # in another browser) instead of revoking them on re-run.
+    bridge_file = folder/'bridge.json'
+    if bridge_file.exists():
+        try:
+            origins = list(dict.fromkeys(
+                origins + json.loads(bridge_file.read_text()).get('allowed_origins', [])
+            ))
+        except Exception:
+            pass
     env_file = folder/'secrets.env'
     if not env_file.exists():
         fd = os.open(env_file, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)

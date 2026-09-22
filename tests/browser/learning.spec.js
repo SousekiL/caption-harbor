@@ -164,6 +164,7 @@ async function setup(page) {
                 .map((item) => `[00:00:0${item.start}] ${item.text}`)
                 .join("\n"),
               language: "en",
+              transcriptSource: "audio",
             };
           }
           if (message.action === "getNotes")
@@ -256,6 +257,12 @@ async function setup(page) {
   await page.goto("https://harbor.test/sidepanel.html");
   await expect(page.locator("#transcriptList")).toContainText("Reinforced");
 }
+test("transcript header marks an audio-sourced transcript", async ({
+  page,
+}) => {
+  await setup(page);
+  await expect(page.locator("#transcriptSourceBadge")).toHaveText("音频转录");
+});
 async function selectWord(page) {
   await page
     .locator(".transcript-text")
@@ -648,4 +655,181 @@ test("reload captions refreshes only the current video's transcript", async ({
     jobId: "paid-job-must-survive",
     word: "learning",
   });
+});
+
+test("late analysis cannot overwrite the next video's analysis or cache", async ({
+  page,
+}) => {
+  await setup(page);
+  await page.evaluate(() => {
+    const send = chrome.runtime.sendMessage;
+    chrome.runtime.sendMessage = (message) =>
+      message.action === "analyzeTranscript"
+        ? new Promise((resolve) => {
+            window.__finishAnalysis = resolve;
+          })
+        : send(message);
+    window.__analysisTask = triggerAnalysis();
+    window.__videoFixtures.videoB34 = {
+      title: "Video B",
+      transcript: ["The current video's transcript."],
+    };
+    window.__navigateVideo("videoB34");
+  });
+  await expect(page.locator("#videoTitle")).toHaveText("Video B");
+  await page.evaluate(async () => {
+    window.__finishAnalysis({
+      success: true,
+      analysis: {
+        summary: "Old analysis",
+        chapters: [],
+        quotes: [],
+        keyMoments: [],
+      },
+    });
+    await window.__analysisTask;
+  });
+  expect(
+    await page.evaluate(() => ({
+      analysis: currentAnalysis,
+      saved: __store.digest_videoB34?.analysis,
+    })),
+  ).toEqual({ analysis: null, saved: null });
+});
+
+test("a cache save retains the transcript captured before a video switch", async ({
+  page,
+}) => {
+  await setup(page);
+  const result = await page.evaluate(async () => {
+    const get = chrome.storage.local.get;
+    let release;
+    chrome.storage.local.get = (keys) =>
+      keys === "digest_video123"
+        ? new Promise((resolve) => {
+            release = () =>
+              resolve({ digest_video123: __store.digest_video123 });
+          })
+        : get(keys);
+    const saving = saveToCache(currentVideoId);
+    currentVideoId = "videoB34";
+    currentTranscript = [{ start: 0, duration: 4, text: "Different video" }];
+    currentTranscriptText = "Different video";
+    currentVideoTitle = "Video B";
+    release();
+    await saving;
+    return __store.digest_video123;
+  });
+  expect(result.transcriptText).toContain("Reinforced learning");
+  expect(result.videoTitle).toBe("Learning, one sentence at a time");
+});
+
+test("a slow notes filter response cannot replace the newest filter", async ({
+  page,
+}) => {
+  await setup(page);
+  await page.evaluate(async () => {
+    const send = chrome.runtime.sendMessage;
+    let release;
+    chrome.runtime.sendMessage = (message) => {
+      if (message.action !== "getNotes") return send(message);
+      if (message.videoId)
+        return new Promise((resolve) => {
+          release = resolve;
+        });
+      return Promise.resolve({
+        success: true,
+        notes: [
+          {
+            id: "new",
+            videoId: "video123",
+            text: "Newest filter notes",
+            timestamp: "00:00",
+            timestampSeconds: 0,
+            timestampedUrl: "https://www.youtube.com/watch?v=video123",
+            videoTitle: "Video",
+          },
+        ],
+      });
+    };
+    const first = loadNotes("video123");
+    await loadNotes(null);
+    release({ success: true, notes: [] });
+    await first;
+  });
+  expect(await page.evaluate(() => currentNotesFilterVideoId)).toBeNull();
+  await expect(page.locator("#notesList")).toContainText("Newest filter notes");
+});
+
+test("a pending playback shortcut cannot control a newly selected video", async ({
+  page,
+}) => {
+  await setup(page);
+  const commands = await page.evaluate(async () => {
+    const send = chrome.tabs.sendMessage;
+    let release;
+    chrome.tabs.sendMessage = (tabId, message) => {
+      if (message.action === "getCurrentTime")
+        return new Promise((resolve) => {
+          release = resolve;
+        });
+      return send(tabId, message);
+    };
+    const action = lensPlayer("loop").catch(() => {});
+    // The guarded path also checks the tab before asking for playback state.
+    while (!release) await Promise.resolve();
+    currentVideoId = "videoB34";
+    window.__currentTab.url = "https://www.youtube.com/watch?v=videoB34";
+    currentTranscript = [{ start: 30, duration: 4, text: "Different video" }];
+    release({ success: true, currentTime: 0 });
+    await action;
+    return __player.filter((message) => message.action === "lensPlayer");
+  });
+  expect(commands).toEqual([]);
+});
+
+test("an answer arriving later preserves the next question being drafted", async ({
+  page,
+}) => {
+  await setup(page);
+  await page.evaluate(async () => {
+    const send = chrome.runtime.sendMessage;
+    let release;
+    chrome.runtime.sendMessage = (message) =>
+      message.action === "lensAI"
+        ? new Promise((resolve) => {
+            release = resolve;
+          })
+        : send(message);
+    document.getElementById("lens-question").value = "First question";
+    const answer = lensAsk();
+    document.getElementById("lens-question").value = "My next question";
+    release({ success: true, text: "The answer" });
+    await answer;
+  });
+  await expect(page.locator("#lens-question")).toHaveValue("My next question");
+});
+
+test("closing an explanation while it loads does not reject or overwrite a later dialog", async ({
+  page,
+}) => {
+  await setup(page);
+  const result = await page.evaluate(async () => {
+    const send = chrome.runtime.sendMessage;
+    let release;
+    chrome.runtime.sendMessage = (message) =>
+      message.action === "explainSelection"
+        ? new Promise((resolve) => {
+            release = resolve;
+          })
+        : send(message);
+    const explanation = showExplanation("Reinforced");
+    document.getElementById("closeExplain").click();
+    release({ success: true, explanation: "An explanation" });
+    return explanation.then(
+      () => "closed",
+      (error) => error.message,
+    );
+  });
+  expect(result).toBe("closed");
 });

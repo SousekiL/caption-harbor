@@ -1,13 +1,15 @@
 /* Read only the video explicitly bound to this panel. */
+function harborVideoChangedError() {
+  const error = new Error("视频已切换，请重新打开侧栏");
+  error.videoChanged = true;
+  return error;
+}
+
 async function readBoundPlayerState(tabId, videoId) {
   const validateTab = async () => {
     const tab = await chrome.tabs.get(tabId);
-    const url = new URL(tab.url);
-    if (
-      url.origin !== "https://www.youtube.com" ||
-      url.searchParams.get("v") !== videoId
-    )
-      throw new Error("视频已切换，请重新打开侧栏");
+    if (HarborSites.detect(tab.url)?.mediaId !== videoId)
+      throw harborVideoChangedError();
   };
   await validateTab();
   let state;
@@ -20,34 +22,21 @@ async function readBoundPlayerState(tabId, videoId) {
   if (state?.success === false || !Number.isFinite(state?.currentTime)) {
     // A reloaded extension can lose its content-script connection. Read media
     // state directly instead of reinjecting an entire script or reloading video.
+    // The MAIN world also reaches site players such as Apple Podcasts'
+    // MusicKit, which a content script cannot see.
     const results = await chrome.scripting.executeScript({
       target: { tabId },
+      world: "MAIN",
       args: [videoId],
-      func: (expected) => {
-        const url = new URL(location.href);
-        if (
-          url.origin !== "https://www.youtube.com" ||
-          url.searchParams.get("v") !== expected
-        )
-          return { success: false, error: "视频已切换" };
-        const video = document.querySelector("video.html5-main-video");
-        if (!video || !Number.isFinite(video.currentTime))
-          return {
-            success: false,
-            error: "视频播放器尚未就绪，请开始播放后重试",
-          };
-        return {
-          success: true,
-          currentTime: video.currentTime,
-          paused: video.paused,
-        };
-      },
+      func: harborPageReadMedia,
     });
     state = results?.[0]?.result;
   }
   await validateTab();
-  if (state?.success === false || !Number.isFinite(state?.currentTime))
+  if (state?.success === false || !Number.isFinite(state?.currentTime)) {
+    if (state?.error === "Video changed") throw harborVideoChangedError();
     throw new Error(state?.error || "暂时无法连接播放器，请重新打开侧栏");
+  }
   return state;
 }
 
@@ -58,12 +47,8 @@ async function seekBoundPlayer(tabId, videoId, seconds) {
 
   const validateTab = async () => {
     const tab = await chrome.tabs.get(tabId);
-    const url = new URL(tab.url);
-    if (
-      url.origin !== "https://www.youtube.com" ||
-      url.searchParams.get("v") !== videoId
-    )
-      throw new Error("视频已切换，请重新打开侧栏");
+    if (HarborSites.detect(tab.url)?.mediaId !== videoId)
+      throw harborVideoChangedError();
   };
 
   await validateTab();
@@ -79,25 +64,17 @@ async function seekBoundPlayer(tabId, videoId, seconds) {
   if (result?.success !== true) {
     const injected = await chrome.scripting.executeScript({
       target: { tabId },
+      world: "MAIN",
       args: [videoId, targetSeconds],
-      func: (expectedVideoId, targetTime) => {
-        const url = new URL(location.href);
-        if (
-          url.origin !== "https://www.youtube.com" ||
-          url.searchParams.get("v") !== expectedVideoId
-        )
-          return { success: false, error: "视频已切换" };
-        const video = document.querySelector("video.html5-main-video");
-        if (!video) return { success: false, error: "视频播放器尚未就绪" };
-        video.currentTime = targetTime;
-        return { success: true, currentTime: video.currentTime };
-      },
+      func: harborPageSeekMedia,
     });
     result = injected?.[0]?.result;
   }
 
   await validateTab();
-  if (result?.success !== true)
+  if (result?.success !== true) {
+    if (result?.error === "Video changed") throw harborVideoChangedError();
     throw new Error(result?.error || "无法跳转视频，请重新打开侧栏");
+  }
   return result;
 }

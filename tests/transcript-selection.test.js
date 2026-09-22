@@ -132,10 +132,56 @@ test("the panel never borrows a background YouTube tab", () => {
   );
   assert.match(
     source,
-    /if \(!tab\.url\.startsWith\("https:\/\/www\.youtube\.com"\)\) \{\s*handleFrontTabUrl\(tab\.url\);\s*return;/,
+    /if \(!HarborSites\.hostSupported\(tab\.url\)\) \{\s*handleFrontTabUrl\(tab\.url\);\s*return;/,
   );
   assert.doesNotMatch(
     source,
     /chrome\.tabs\.query\(\{ url: "https:\/\/www\.youtube\.com\/\*" \}\)/,
+  );
+});
+
+test("a queued digest refresh is not rescheduled by repeated triggers", () => {
+  // The playback watchdog reports "video changed" every poll; if each report
+  // reset the debounce the refresh would be starved forever.
+  assert.match(
+    source,
+    /function scheduleDigestRefresh\(\) \{[\s\S]*?if \(navigationRefreshTimer\) return;[\s\S]*?navigationRefreshTimer = null;[\s\S]*?void checkCurrentTab\(generation\);/,
+  );
+});
+
+test("the playback watchdog self-heals when the bound tab changed videos", () => {
+  assert.match(
+    source,
+    /catch \(error\) \{\s*if \(error\?\.videoChanged\) \{[\s\S]*?scheduleDigestRefresh\(\);\s*return false;/,
+  );
+  assert.match(
+    source,
+    /catch \(error\) \{\s*if \(error\?\.videoChanged\) \{\s*scheduleDigestRefresh\(\);\s*return;/,
+  );
+});
+
+test("the tab-event filter is anchored to the bound tab's window", () => {
+  assert.match(
+    source,
+    /youtubeTabId = tab\.id;[\s\S]*?panelWindowId = tab\.windowId;/,
+  );
+});
+
+test("player-connection flags video-changed failures for self-healing", () => {
+  const connection = fs.readFileSync(
+    path.resolve(__dirname, "..", "player-connection.js"),
+    "utf8",
+  );
+  const flagged = connection.match(
+    /HarborSites\.detect\(tab\.url\)\?\.mediaId !== videoId\)\s*throw harborVideoChangedError\(\);/g,
+  );
+  assert.equal(flagged?.length, 2, "read and seek validators must flag");
+  assert.match(
+    connection,
+    /state\?\.error === "Video changed"\) throw harborVideoChangedError\(\);/,
+  );
+  assert.match(
+    connection,
+    /result\?\.error === "Video changed"\) throw harborVideoChangedError\(\);/,
   );
 });

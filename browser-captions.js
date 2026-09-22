@@ -153,3 +153,112 @@ async function readBrowserCaptions(videoId) {
     : data;
   return { ...LensCore.transcriptResult(normalized), source: "youtube" };
 }
+
+/**
+ * Reads Bilibili's own subtitle tracks with the signed-in page's cookies.
+ * The chain mirrors what the site does: /x/web-interface/view resolves the
+ * cid for the current part, /x/player/v2 lists tracks, and the subtitle JSON
+ * itself is served from aisubtitle.hdslb.com without credentials.
+ */
+async function readBilibiliCaptions(videoId) {
+  const tabs = await chrome.tabs.query({
+    url: ["https://www.bilibili.com/video/*", "https://bilibili.com/video/*"],
+  });
+  const boundTabId = typeof youtubeTabId === "number" ? youtubeTabId : null;
+  const tab =
+    tabs.find(
+      (t) =>
+        t.id === boundTabId &&
+        HarborSites.detect(t.url)?.mediaId === videoId,
+    ) ||
+    tabs.find((t) => HarborSites.detect(t.url)?.mediaId === videoId);
+  if (!tab) return { success: false };
+  const results = await chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    world: "MAIN",
+    func: async () => {
+      try {
+        const url = new URL(location.href);
+        const bvid = url.pathname.match(/^\/video\/(BV\w+)/)?.[1];
+        if (!bvid) return { success: false };
+        const part = Math.max(
+          1,
+          Math.floor(Number(url.searchParams.get("p")) || 1),
+        );
+        const view = await fetch(
+          `https://api.bilibili.com/x/web-interface/view?bvid=${encodeURIComponent(bvid)}`,
+          { credentials: "include", signal: AbortSignal.timeout(8000) },
+        ).then((r) => (r.ok ? r.json() : null));
+        const page = view?.data?.pages?.[part - 1];
+        const cid = page?.cid || view?.data?.cid;
+        if (!cid) return { success: false };
+        const player = await fetch(
+          `https://api.bilibili.com/x/player/v2?bvid=${encodeURIComponent(bvid)}&cid=${cid}`,
+          { credentials: "include", signal: AbortSignal.timeout(8000) },
+        ).then((r) => (r.ok ? r.json() : null));
+        const tracks = player?.data?.subtitle?.subtitles || [];
+        if (!tracks.length) return { success: false };
+        const rank = (track) => {
+          // This app teaches English — an English track beats Chinese AI
+          // captions, and human-authored beats AI within a language.
+          const raw = String(track?.lan || "");
+          const lang = raw.replace(/^ai-/i, "");
+          const ai = track?.ai_status || /^ai-/i.test(raw);
+          const base = /^en/i.test(lang) ? 3 : /^zh/i.test(lang) ? 2 : 0;
+          return base * 2 - (ai ? 1 : 0);
+        };
+        const ordered = [...tracks].sort((a, b) => rank(b) - rank(a));
+        for (const track of ordered.slice(0, 2)) {
+          try {
+            const raw = String(track?.subtitle_url || "");
+            if (!raw) continue;
+            const subtitleUrl = new URL(
+              raw.startsWith("//") ? `https:${raw}` : raw,
+            );
+            if (
+              subtitleUrl.protocol !== "https:" ||
+              !["hdslb.com", "bilibili.com", "biliapi.net"].some(
+                (host) => subtitleUrl.hostname === host || subtitleUrl.hostname.endsWith(`.${host}`),
+              )
+            )
+              continue;
+            const data = await fetch(subtitleUrl, {
+              credentials: "omit",
+              signal: AbortSignal.timeout(8000),
+            }).then((r) => (r.ok ? r.json() : null));
+            if ((data?.body || []).length)
+              return { success: true, body: data.body, lang: track.lan || "" };
+          } catch {}
+        }
+        return { success: false };
+      } catch {
+        return { success: false };
+      }
+    },
+  });
+  const data = results?.[0]?.result;
+  if (!data?.success) return { success: false };
+  const current = await chrome.tabs.get(tab.id);
+  if (HarborSites.detect(current.url)?.mediaId !== videoId)
+    return { success: false };
+  const normalized = {
+    content: LensCore.bilibiliSubtitlesToContent({ body: data.body }),
+    lang: data.lang,
+  };
+  return { ...LensCore.transcriptResult(normalized), source: "bilibili" };
+}
+
+/**
+ * Routes caption reading to the site's own mechanism. Apple Podcasts has no
+ * web transcript surface, so it falls through to audio transcription.
+ */
+async function readSiteCaptions(videoId) {
+  switch (HarborSites.siteOf(videoId)) {
+    case "youtube":
+      return readBrowserCaptions(videoId);
+    case "bilibili":
+      return readBilibiliCaptions(videoId);
+    default:
+      return { success: false };
+  }
+}

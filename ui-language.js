@@ -14,6 +14,10 @@ var HarborUI = (() => {
     "Save service settings": "保存服务设置",
     "Read existing captions first. Transcription starts only when captions are unavailable.":
       "优先读取已有字幕；没有字幕时才转录音频。",
+    "Transcribe the original audio instead of site captions":
+      "转写原声音频（跳过站点自带字幕）",
+    "Use when a site's own captions don't match the spoken language, like Bilibili AI captions in Chinese over English audio. Whisper and Groq transcribe the actual audio, so the transcript follows the spoken language.":
+      "适用于站点字幕与音频语言不符的情况，例如 Bilibili 在英文音频上提供中文 AI 字幕。Whisper 和 Groq 转写的是实际音频，因此转录结果跟随音频语言。",
     "Supadata processes public video audio in the cloud and uses additional credits.":
       "Supadata 在云端处理公开视频音频，会消耗额外额度。",
     "Groq processes audio in the cloud and charges by usage. Preparing video audio also requires the local helper.":
@@ -200,8 +204,8 @@ var HarborUI = (() => {
   Object.assign(pairs, {
     "Open Caption Harbor settings": "打开 Caption Harbor 设置",
     "Reload current video captions": "重新载入当前视频字幕",
-    "Navigate to a YouTube video and click the extension icon to get an AI-powered digest.":
-      "打开 YouTube 视频，点击插件图标开始学习。",
+    "Open a YouTube, Bilibili, or Apple Podcasts episode and click the extension icon to get an AI-powered digest.":
+      "打开 YouTube、Bilibili 或 Apple 播客内容，点击插件图标开始学习。",
     "Extracting captions from video...": "正在读取视频字幕…",
     "Chapters will appear here": "章节将显示在这里",
     "Quotes will be extracted when you view this tab...":
@@ -212,8 +216,19 @@ var HarborUI = (() => {
       "上次转录请求的结果尚不明确。请先在 Supadata 核对任务与额度，再在设置中重置该视频任务。",
     "Transcribing audio. You can close the panel and reopen it to check progress.":
       "正在转录音频，可关闭侧栏，稍后打开会继续查询",
+    "Closing this page stops the transcription.": "关闭此网页将停止转录任务",
     "Audio transcription failed. Reset the task in Settings to retry.":
       "音频转录失败，可在设置中重置任务后重试",
+    "Audio transcript": "音频转录",
+    "Site captions": "站内字幕",
+    Imported: "已导入字幕",
+    "Audio transcription failed; showing site captions.":
+      "音频转录失败，当前显示站内字幕",
+    "No English transcript is available for this video — captions in other languages are hidden by your transcript language setting.":
+      "该视频没有英文字幕——按“字幕语言”设置，其他语言的字幕已隐藏",
+    "No Chinese transcript is available for this video — captions in other languages are hidden by your transcript language setting.":
+      "该视频没有中文字幕——按“字幕语言”设置，其他语言的字幕已隐藏",
+    "Reset task": "重置任务",
     Ready: "已就绪",
 
     Advanced: "高级设置",

@@ -59,6 +59,34 @@
               Read existing captions first. Transcription starts only when
               captions are unavailable.
             </p>
+            <label
+              class="checkbox-line"
+              id="harbor-original-line"
+              for="harbor-original"
+              hidden
+              ><input id="harbor-original" type="checkbox" /><span
+                >Transcribe the original audio instead of site captions</span
+              ></label
+            >
+            <p class="help" id="harbor-original-help" hidden>
+              Use when a site's own captions don't match the spoken language,
+              like Bilibili AI captions in Chinese over English audio. Whisper
+              and Groq transcribe the actual audio, so the transcript follows
+              the spoken language.
+            </p>
+            <label for="requiredTranscriptLanguage">
+              Required transcript language
+            </label>
+            <select id="requiredTranscriptLanguage">
+              <option value="auto">Any language</option>
+              <option value="en">English only</option>
+              <option value="zh">Chinese only</option>
+            </select>
+            <p class="help">
+              A hard filter: a transcript in any other language is hidden
+              instead of shown. English only hides a Chinese site captions
+              track even when audio transcription is unavailable.
+            </p>
             <div id="transcriptionChoices">
               <label for="transcriptionProvider">Transcription method</label>
               <select id="transcriptionProvider">
@@ -151,7 +179,7 @@
               aria-label="Supported AI provider"
               data-i18n-aria-label="providerSummaryLabel"
             >
-              <span class="provider-name">DeepSeek V4 Flash</span>
+              <span class="provider-name">DeepSeek Flash</span>
               <span class="provider-badge" data-i18n="providerBadge"
                 >Supported in this version</span
               >
@@ -170,7 +198,7 @@
             />
             <p class="help">
               <span data-i18n="deepseekHelp"
-                >Caption Harbor uses DeepSeek V4 Flash for overviews,
+                >Caption Harbor uses DeepSeek Flash for overviews,
                 explanations, translation, and note polishing.</span
               >
               <a
@@ -296,6 +324,7 @@
 
     <script src="ui-language.js"></script>
     <script src="settings.js"></script>
+    <script src="sites.js"></script>
     <script src="options.js"></script>
     <script src="audio-transcription.js"></script>
     <script src="service-settings.js"></script>
