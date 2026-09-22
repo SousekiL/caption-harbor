@@ -10,7 +10,8 @@
     "package": "bash scripts/package-extension.sh",
     "test:browser": "playwright test",
     "install:environment": "python3 scripts/install-native-host.py",
-    "test:native": "python3 -m unittest discover -s tests/native -p \"test_*.py\""
+    "test:native": "python3 -m unittest discover -s tests/native -p \"test_*.py\"",
+    "package:minitool": "python3 scripts/package-minitool.py"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

@@ -206,3 +206,17 @@ npm run package
 ## 许可与致谢
 
 采用 MIT 许可，见 [LICENSE](LICENSE)。感谢 Zara Zhang 和 YouTube Digest 贡献者提供原始基础，本仓库独立维护新增改进。内置字体遵循各自的[许可与署名说明](fonts/README.md)。
+
+## 小红书离线小工具（独立版本）
+
+`minitool/` 为独立的「字幕小港」离线精读版：手动粘贴 SRT、VTT 或普通文本，逐句阅读、搜索、标记已读、收藏生词、记笔记、整理可手动复制的摘录。数据仅在当前工具中缓存。
+
+小红书容器不允许联网、浏览器扩展 API、本机转录、剪贴板读写或文件下载；因此该版本不抓取视频、不调用 AI、不自动翻译、不连接欧路，也不需要 API key。它与桌面扩展分别打包，不能相互替代安装。
+
+```sh
+node --test tests/minitool.test.js
+npx playwright test tests/browser/minitool.spec.js
+npm run package:minitool
+```
+
+产物为 `dist/caption-harbor-xiaohongshu-v1.0.0.zip`，根目录直接包含 `index.html`。可提交小红书小工具平台；平台审核、模拟器及 Android 8.1 / WebView 61 真机兼容性需另行验证。

@@ -206,3 +206,9 @@ Report issues in [this fork's issue tracker](https://github.com/SousekiL/caption
 ## License and acknowledgments
 
 MIT; see [LICENSE](LICENSE). Thank you to Zara Zhang and the YouTube Digest contributors for the original foundation. Caption Harbor's modifications are maintained in this repository. Bundled fonts have their own [licenses and attribution](fonts/README.md).
+
+## Independent Xiaohongshu offline mini-tool
+
+`minitool/` is a separate offline text-study app. Paste SRT/VTT/plain text, search captions, mark progress, collect vocabulary, write notes, and select a text digest for manual copying. It has no network access, extension/native APIs, AI translation, Eudic sync, clipboard API, or file downloads. Local storage is a cache, not permanent backup.
+
+Run `node --test tests/minitool.test.js`, `npx playwright test tests/browser/minitool.spec.js`, then `npm run package:minitool`. The output is `dist/caption-harbor-xiaohongshu-v1.0.0.zip` with a root `index.html`. Platform approval and Android 8.1 / WebView 61 device compatibility are not yet verified.
