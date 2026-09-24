@@ -9,28 +9,30 @@
 <body>
   <div class="app-shell">
     <header class="masthead">
-      <div class="brand"><span class="brand-symbol" aria-hidden="true">港</span><div><strong>字幕小港</strong><small>CAPTION HARBOR</small></div></div>
+      <div class="brand"><img class="brand-symbol" src="./ch.svg" width="40" height="40" alt="CH"><div><strong>字幕小港</strong><small>CAPTION HARBOR</small></div></div>
       <button id="about-open" class="quiet" aria-label="使用说明">使用说明</button>
     </header>
     <main>
       <section class="hero">
-        <div class="eyebrow"><span class="dot"></span> 离线精读 · 随手积累</div>
-        <h1>读懂一句，<br>带走一点。</h1>
-        <p>把字幕留下，把生词和想法带走。</p>
-        <button id="import-open" class="primary">＋ 粘贴我的字幕</button>
+        <div class="eyebrow"><span class="dot"></span> 字幕学习示例</div>
+        <h1>查单词，<br>看句子解释。</h1>
+        <p>点字幕中标出的词，查看释义和例句。</p>
+        <button id="demo-open" class="primary">查看示例</button>
+        <button id="import-open" class="secondary">粘贴字幕</button>
       </section>
       <div id="storage-warning" class="warning" role="status" hidden></div>
       <section class="workspace" aria-label="学习内容">
         <div class="document-row"><label for="document-select">正在阅读</label><select id="document-select"></select><button id="delete-doc" class="quiet">移除</button></div>
-        <div class="stats"><span><b id="cue-count">0</b> 句字幕</span><span><b id="read-count">0</b> 句已读</span><span><b id="saved-count">0</b> 条积累</span></div>
+        <div class="stats"><span><b id="cue-count">0</b> 句字幕</span><span><b id="read-count">0</b> 句已读</span><span><b id="saved-count">0</b> 条收藏</span></div>
         <div class="progress-track" aria-hidden="true"><div id="progress-fill"></div></div>
         <nav class="tabs" aria-label="学习分区"><button data-view="read" class="active" aria-pressed="true">字幕</button><button data-view="words" aria-pressed="false">生词</button><button data-view="notes" aria-pressed="false">笔记</button></nav>
-        <div class="list-toolbar"><label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="在字幕里找一句话" aria-label="搜索当前分区"></label><button id="export-open" class="quiet">整理摘录</button></div>
-        <div class="list-heading"><h2 id="list-title">一句一句读</h2><span id="result-count"></span></div>
+        <div class="list-toolbar"><label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="搜索字幕" aria-label="搜索当前分区"></label><button id="export-open" class="quiet">查看摘录</button></div>
+        <div class="list-heading"><h2 id="list-title">字幕</h2><span id="result-count"></span></div>
+        <p id="demo-hint" class="demo-hint" hidden>绿色词语可点开查词义。“概念解释”说明整句意思。解释已预先写好，可离线查看。</p>
         <div id="list"></div>
         <div class="pagination"><button id="previous-page" class="secondary">上一页</button><span id="page-label"></span><button id="next-page" class="secondary">下一页</button></div>
       </section>
-      <footer>只在当前工具里保存 · 重要内容请定期整理留存</footer>
+      <footer>记录保存在本机，重要内容请另存。</footer>
     </main>
   </div>
   <div id="toast" class="toast" role="status" hidden></div>
@@ -38,25 +40,46 @@
     <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="dialog-title" tabindex="-1">
       <div class="sheet-header"><h2 id="dialog-title"></h2><button id="close-modal" class="quiet" aria-label="关闭弹层">关闭</button></div>
       <div id="import-panel" hidden>
-        <p class="hint">支持 SRT、VTT、带时间戳的字幕和普通文本。请在下方手动粘贴；不会读取剪贴板。</p>
-        <label class="field">内容标题<input id="import-title" maxlength="80" placeholder="例如：我的英语精读笔记"></label>
+        <p class="hint">粘贴 SRT、VTT、带时间戳的字幕或普通文字。</p>
+        <label class="field">标题<input id="import-title" maxlength="80" placeholder="例如：今天看的访谈"></label>
         <label class="field">字幕内容<textarea id="import-text" rows="9" maxlength="50000" placeholder="00:00:01,000 --> 00:00:04,000&#10;Small steps make a difference."></textarea></label>
         <p class="hint">每份最多 5 万字、800 句，最多保存 6 份。时间戳用于阅读定位，不播放原视频。</p>
-        <button id="import-submit" class="primary full">开始精读</button>
+        <button id="import-submit" class="primary full">导入字幕</button>
+      </div>
+      <div id="lookup-panel" hidden>
+        <div class="demo-label">离线示例，非实时 AI 查询</div>
+        <div class="lookup-language" aria-label="解释语言"><button type="button" data-explanation="zh">中文辅助英文</button><button type="button" data-explanation="en">English only</button></div>
+        <div id="lookup-result"></div>
+        <button id="lookup-save" class="primary full" type="button">收藏生词</button>
       </div>
       <div id="capture-panel" hidden>
         <blockquote id="capture-context"></blockquote>
-        <div id="word-fields"><label class="field">单词或短语<input id="word-input" maxlength="100" placeholder="输入想留下的单词或短语"></label><label class="field">我的释义<textarea id="word-meaning" rows="3" maxlength="1000" placeholder="写下你理解的意思（可选）"></textarea></label></div>
-        <div id="note-fields"><label class="field">我的想法<textarea id="note-input" rows="5" maxlength="2000" placeholder="这句话让我想到……（可选）"></textarea></label></div>
+        <div id="word-fields">
+          <label class="field">单词或短语<input id="word-input" maxlength="100" placeholder="输入单词或短语"></label>
+          <div class="dictionary-fields">
+            <label class="field">音标<input id="word-pronunciation" maxlength="80" placeholder="例如 /ˈkɒntekst/"></label>
+            <label class="field">词性<input id="word-part-of-speech" maxlength="40" placeholder="例如 n. / v. / adj."></label>
+          </div>
+          <label class="field">释义<textarea id="word-meaning" rows="3" maxlength="1000" placeholder="填写释义（可选）"></textarea></label>
+          <label class="field">例句<textarea id="word-example" rows="3" maxlength="1000" placeholder="默认使用原字幕，也可以改写"></textarea></label>
+        </div>
+        <div id="note-fields"><label class="field">笔记<textarea id="note-input" rows="5" maxlength="2000" placeholder="写笔记，或留空只保存原句"></textarea></label></div>
         <button id="capture-submit" class="primary full">保存</button>
       </div>
-      <div id="export-panel" hidden><p class="hint">这里是可选中的文字。请手动选择、复制并保存到自己的笔记里。</p><textarea id="export-text" rows="12" readonly aria-label="可手动复制的摘录"></textarea><button id="select-export" class="secondary full">选中全部文字</button></div>
+      <div id="export-panel" hidden><p class="hint">选中文字后，可手动复制到其他笔记软件。</p><textarea id="export-text" rows="12" readonly aria-label="可手动复制的摘录"></textarea><button id="select-export" class="secondary full">全选文字</button></div>
       <div id="about-panel" hidden>
-        <p>字幕小港是 Caption Harbor 的独立离线精读版。</p>
-        <ol><li>粘贴自己的字幕或短文。</li><li>搜索、逐句阅读，并标记已读。</li><li>留下生词、原句和想法，随时整理摘录。</li></ol>
-        <p>本工具不联网、不调用 AI、不读取视频网页，也不自动翻译或同步欧路。已有译文可以一起粘贴，词义由你自己填写。</p>
-        <p>内容只缓存在当前工具中，不保证永久保留。重要学习记录请通过“整理摘录”手动保存。</p>
-        <div class="credits">Caption Harbor · 小红书离线版 1.0.0<br>产品源自 Zara Zhang 的 YouTube Digest（MIT）。<details><summary>开源署名与许可</summary><pre id="license-text"></pre></details></div>
+        <p>字幕小港是 Caption Harbor 的小红书离线版。</p>
+        <ol><li>用示例字幕查看词义和概念解释。</li><li>切换中英文解释，收藏生词或保存笔记。</li><li>也可以粘贴自己的字幕，搜索、阅读和记笔记。</li></ol>
+        <p>示例解释已预先写好，不是实时 AI 查询。自行导入的其他内容需要手动填写释义。</p>
+        <p>本工具不联网、不调用 AI、不读取视频网页，也不自动翻译或同步欧路。</p>
+        <p>记录只保存在本机。清理应用数据可能使记录丢失，重要内容请从“查看摘录”另存。</p>
+        <section class="store-info">
+          <h3>桌面完整版</h3>
+          <p>电脑插件支持读取视频字幕、AI 查词和音频转录。安装地址：</p>
+          <label class="field">Chrome 应用商店地址<input id="store-url" readonly value="https://chromewebstore.google.com/detail/caption-harbor/kopjchpnhjdekbjljikkjcebojcalmil"></label>
+          <button id="select-store-url" class="secondary full" type="button">选中商店地址</button>
+        </section>
+        <div class="credits">Caption Harbor · 小红书离线版 1.2.1<br>基于 Zara Zhang 的 YouTube Digest（MIT）。<details><summary>开源署名与许可</summary><pre id="license-text"></pre></details></div>
       </div>
       <p id="dialog-error" class="error" role="alert"></p>
     </section>

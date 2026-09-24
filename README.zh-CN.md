@@ -248,4 +248,4 @@ npx playwright test tests/browser/minitool.spec.js
 npm run package:minitool
 ```
 
-产物为 `dist/caption-harbor-xiaohongshu-v1.0.0.zip`，根目录直接包含 `index.html`。可提交小红书小工具平台；平台审核、模拟器及 Android 8.1 / WebView 61 真机兼容性需另行验证。
+当前产物为 `dist/caption-harbor-xiaohongshu-v1.2.1.zip`，根目录直接包含 `index.html`、`style.css`、`core.js`、`app.js`、`ch.svg`。1.2.1 提供六句可点击的离线示例词义／概念解释、手动音标、词性和例句，使用 CH 图标，并在使用说明中提供桌面完整版的 Chrome 应用商店地址（不外跳）。可提交小红书小工具平台；平台审核、模拟器及 Android 8.1 / WebView 61 真机兼容性需另行验证。

@@ -19,17 +19,21 @@ test('mini-tool handles plain text and timestamped pasted lines', () => {
   assert.equal(core.clock(null),'');
 });
 test('mini-tool validates persisted records and rejects malformed collection data', () => {
-  const state={version:1,active:'a',docs:[{id:'a',title:'Title',read:[0,0],cues:[{text:'a',start:0}]}],words:[],notes:[]};
+  const state={version:1,active:'a',docs:[{id:'a',title:'Title',read:[0,0],cues:[{text:'a',start:0}]}],words:[{id:'w',docId:'a',title:'Title',context:'Example.',text:'example',created:'2026-09-23T00:00:00.000Z',pronunciation:'/ɪɡˈzɑːmpəl/',partOfSpeech:'n.',meaning:'例子',example:'This is an example.'}],notes:[]};
   assert.deepEqual(core.validate(state).docs[0].read,[0]);
+  assert.equal(core.validate(state).words[0].partOfSpeech,'n.');
+  assert.throws(()=>core.validate({...state,words:[{...state.words[0],pronunciation:42}]}));
   assert.throws(()=>core.validate({version:1,docs:[],words:[{}],notes:[]}));
 });
 test('mini-tool ships only offline classic scripts with no prohibited APIs', () => {
   const root=path.resolve(__dirname,'../minitool');
   const files=fs.readdirSync(root);
-  assert.deepEqual(files.sort(),['app.js','core.js','index.html','style.css']);
+  assert.deepEqual(files.sort(),['app.js','ch.svg','core.js','index.html','style.css']);
   const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
   const js=files.filter(f=>f.endsWith('.js')).map(f=>fs.readFileSync(path.join(root,f),'utf8')).join('\n');
   assert.doesNotMatch(html,/<(?:iframe|object|base)\b|type=["']module|\son\w+=|javascript:|http-equiv|\bdownload\b|target=["']_blank/i);
+  assert.doesNotMatch(html,/<a\b[^>]*href=["']https?:/i);
+  assert.match(html,/Chrome 应用商店地址/);
   assert.doesNotMatch(js,/\bfetch\s*\(|XMLHttpRequest|WebSocket|EventSource|RTCPeerConnection|navigator\.(?:clipboard|geolocation|serviceWorker|locks)|execCommand|new\s+(?:Worker|SharedWorker|Function)|\beval\s*\(|WebAssembly|window\.(?:open|prompt)\s*\(|chrome\./);
   assert.doesNotMatch(js,/\?\.|\?\?|\.replaceAll\(|\.at\(|Object\.hasOwn|structuredClone|\p\{/);
   for(const match of html.matchAll(/<(script|link)\b[^>]*(?:src|href)="([^"]+)"[^>]*>/g)) {assert.ok(match[2].startsWith('./')); assert.ok(fs.existsSync(path.join(root,match[2])));}

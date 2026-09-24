@@ -6,8 +6,8 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parent.parent
 SOURCE = ROOT / 'minitool'
-FILES = ('index.html', 'style.css', 'core.js', 'app.js')
-OUTPUT = ROOT / 'dist' / 'caption-harbor-xiaohongshu-v1.0.0.zip'
+FILES = ('index.html', 'style.css', 'core.js', 'app.js', 'ch.svg')
+OUTPUT = ROOT / 'dist' / 'caption-harbor-xiaohongshu-v1.2.1.zip'
 
 
 def main():
@@ -20,7 +20,7 @@ def main():
     OUTPUT.parent.mkdir(exist_ok=True)
     with zipfile.ZipFile(OUTPUT, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
         for name in FILES:
-            info = zipfile.ZipInfo(name, date_time=(2026, 9, 22, 0, 0, 0))
+            info = zipfile.ZipInfo(name, date_time=(2026, 9, 23, 0, 0, 0))
             info.external_attr = 0o100644 << 16
             info.compress_type = zipfile.ZIP_DEFLATED
             archive.writestr(info, (SOURCE / name).read_bytes())
