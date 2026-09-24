@@ -11,10 +11,16 @@
     "test:browser": "playwright test",
     "install:environment": "python3 scripts/install-native-host.py",
     "test:native": "python3 -m unittest discover -s tests/native -p \"test_*.py\"",
-    "package:minitool": "python3 scripts/package-minitool.py"
+    "package:minitool": "python3 scripts/package-minitool.py",
+    "sync:local": "python3 scripts/sync-local-extension.py",
+    "store:status": "node scripts/chrome-webstore.mjs status",
+    "store:prepare": "node scripts/chrome-webstore.mjs prepare",
+    "store:upload": "node scripts/chrome-webstore.mjs upload",
+    "store:release": "node scripts/chrome-webstore.mjs release"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
+    "google-auth-library": "^11.1.0",
     "prettier": "^3.9.8"
   }
 }
